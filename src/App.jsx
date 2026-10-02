@@ -1,5 +1,4 @@
 import { AlertTriangle, BarChart3, Camera, ChartColumn, Gauge, Lightbulb, Map as MapIcon, PieChart, Radar, RefreshCw, Siren, TrafficCone, Trophy } from 'lucide-react'
-import { useFetchEvents } from './hooks/useFetchEvents'
 import { useSemaforos } from './hooks/useSemaforos'
 import { useWazeTraffic } from './hooks/useWazeTraffic'
 import { Header } from './components/layout/Header'
@@ -18,7 +17,6 @@ import { FaultBreakdown } from './components/trafficLights/FaultBreakdown'
 import { TrafficLightOccurrences } from './components/trafficLights/TrafficLightOccurrences'
 import { CamerasSection } from './components/cameras/CamerasSection'
 import { OccurrenceDashboard } from './components/occurrences/OccurrenceDashboard'
-import { OccurrenceMap } from './components/map/OccurrenceMap'
 import { WazeLiveMap } from './components/waze/WazeLiveMap'
 import { CongestionKpi } from './components/waze/CongestionKpi'
 import { formatDecimal, formatNumber } from './utils/format'
@@ -40,20 +38,7 @@ function Footer() {
 
 export default function App() {
   const semaforos = useSemaforos({ pollingMs: 60000 })
-  const ocorrencias = useFetchEvents({ pollingMs: 60000 })
   const waze = useWazeTraffic({ pollingMs: 120000 })
-
-  const mapLoading = semaforos.loading || ocorrencias.loading
-
-  const mapLastUpdated =
-    semaforos.lastUpdated && ocorrencias.lastUpdated
-      ? new Date(Math.max(new Date(semaforos.lastUpdated), new Date(ocorrencias.lastUpdated))).toISOString()
-      : semaforos.lastUpdated || ocorrencias.lastUpdated
-
-  const refreshMap = () => {
-    void semaforos.refresh({ silent: false })
-    void ocorrencias.refresh({ silent: false })
-  }
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-5 px-4 py-5 md:px-6">
@@ -268,26 +253,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* Seção 4 — Mapa Operacional (ocorrências + semáforos georreferenciados) */}
-      <section>
-        <SectionTitle
-          icon={MapIcon}
-          title="Mapa Operacional"
-          subtitle="Ocorrências urbanas e controladores semafóricos georreferenciados na cidade do Rio de Janeiro"
-        />
-        <Panel>
-          <OccurrenceMap
-            events={ocorrencias.feed}
-            controllers={semaforos.controllers}
-            loading={mapLoading}
-            error={semaforos.error || ocorrencias.error}
-            lastUpdated={mapLastUpdated}
-            onRefresh={refreshMap}
-          />
-        </Panel>
-      </section>
-
-      {/* Seção 5 — Monitoramento de Ocorrências em Tempo Real */}
+      {/* Seção 4 — Monitoramento de Ocorrências em Tempo Real */}
       <section>
         <SectionTitle
           icon={Siren}
