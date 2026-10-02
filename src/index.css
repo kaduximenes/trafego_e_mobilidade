@@ -1,0 +1,204 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', 'Roboto', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, monospace;
+
+  /* Backgrounds */
+  --color-corbase: #0b132b;
+  --color-cordeep: #070d1f;
+  --color-corpanel: #131c35;
+  --color-corpanel-2: #1a2340;
+  --color-corborder: #243049;
+  --color-corborder-soft: #1d2740;
+
+  /* Accents */
+  --color-primary: #00a8ff;
+  --color-primary-soft: #3b82f6;
+  --color-ok: #00e676;
+  --color-ok-soft: #10b981;
+  --color-warn: #ff9100;
+  --color-warn-soft: #f59e0b;
+  --color-danger: #ff1744;
+  --color-danger-soft: #ef4444;
+  --color-magenta: #ec4899;
+  --color-violet: #a855f7;
+  --color-violet-soft: #8b5cf6;
+
+  --color-text-main: #e2e8f0;
+  --color-text-muted: #8b98b8;
+  --color-text-dim: #64748b;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-corbase);
+  background-image:
+    radial-gradient(1200px 600px at 15% -10%, rgba(0, 168, 255, 0.08), transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, rgba(168, 85, 247, 0.06), transparent 55%),
+    radial-gradient(900px 700px at 50% 120%, rgba(0, 230, 118, 0.04), transparent 60%);
+  background-attachment: fixed;
+  color: var(--color-text-main);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin scrollbars for monitoring panels */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2b3a5e;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4f7c;
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+  .text-glow {
+    text-shadow: 0 0 18px rgba(0, 168, 255, 0.45);
+  }
+  .card-glow:hover {
+    box-shadow:
+      0 0 0 1px rgba(0, 168, 255, 0.35),
+      0 18px 40px -18px rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* Recharts dark theme overrides */
+.recharts-cartesian-grid line {
+  stroke: rgba(139, 152, 184, 0.12);
+}
+.recharts-text {
+  fill: #8b98b8;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.recharts-legend-item-text {
+  color: #8b98b8 !important;
+  font-family: var(--font-sans);
+}
+.recharts-tooltip-cursor {
+  fill: rgba(0, 168, 255, 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Mapa (Leaflet) — tema escuro COR.Rio
+   ───────────────────────────────────────────────────────────── */
+.map-shell {
+  /* Evita que os popups padrão (claros) escapem do tema escuro. */
+  --corio-popup-bg: var(--color-corpanel);
+  --corio-popup-fg: var(--color-text-main);
+}
+
+.leaflet-container {
+  background: var(--color-cordeep);
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.leaflet-container a {
+  color: var(--color-primary);
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background-color: var(--color-corpanel);
+  color: var(--color-text-main);
+  border-bottom-color: var(--color-corborder);
+}
+
+.leaflet-bar a:hover {
+  background-color: var(--color-corpanel-2);
+}
+
+.leaflet-control-attribution {
+  background: rgba(7, 13, 31, 0.78) !important;
+  color: var(--color-text-dim) !important;
+  font-size: 10px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-text-muted) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--corio-popup-bg);
+  color: var(--corio-popup-fg);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--color-corborder);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.leaflet-popup-close-button {
+  color: var(--color-text-muted) !important;
+}
+
+/* Popups da versão da ocorrência agrupada em cluster */
+.corio-popup--occurrence .leaflet-popup-content-wrapper,
+.corio-popup--occurrence .leaflet-popup-tip {
+  border-color: rgba(255, 23, 68, 0.45);
+}
+
+.corio-popup--signal .leaflet-popup-content-wrapper,
+.corio-popup--signal .leaflet-popup-tip {
+  border-color: rgba(0, 168, 255, 0.35);
+}
+
+/* Marcadores — animação de alerta apenas para semáforos com falha */
+.corio-signal-blink {
+  animation: corio-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes corio-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corio-signal-blink {
+    animation: none;
+  }
+}
+

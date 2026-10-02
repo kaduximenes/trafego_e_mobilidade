@@ -1,0 +1,36 @@
+# Blueprint do Render — https://render.com/docs/blueprint-spec
+#
+# Por que um servidor Node e não hospedagem estática:
+# as APIs do COR e do Antares não enviam cabeçalhos CORS, então o navegador só
+# consegue consumi-las via proxy same-origin (server/index.js). Além disso, as
+# credenciais precisam ficar no servidor — variáveis VITE_* são embutidas no
+# bundle do navegador e ficariam públicas.
+
+services:
+  - type: web
+    name: trafego-iacor
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      # Defina os valores no painel do Render (sync: false mantém fora do repo).
+      - key: ANTARES_API_KEY
+        sync: false
+      - key: CORIO_EVENTS_USERNAME
+        sync: false
+      - key: CORIO_EVENTS_PASSWORD
+        sync: false
+      - key: WAZE_API_KEY
+        sync: false
+      - key: WAZE_PARTNER_ID
+        sync: false
+      # Tixxi roda em rede interna do COR e NÃO é alcançável pela internet
+      # pública. Só funciona se o Render tiver rota até essa rede (VPN/Túnel).
+      - key: TIXXI_TARGET
+        sync: false
