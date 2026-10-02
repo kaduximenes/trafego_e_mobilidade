@@ -21,6 +21,7 @@ import { OccurrenceDashboard } from './components/occurrences/OccurrenceDashboar
 import { OccurrenceMap } from './components/map/OccurrenceMap'
 import { WazeLiveMap } from './components/waze/WazeLiveMap'
 import { CongestionKpi } from './components/waze/CongestionKpi'
+import { formatDecimal, formatNumber } from './utils/format'
 
 function Footer() {
   return (
@@ -200,6 +201,71 @@ export default function App() {
             <TrafficLightOccurrences data={semaforos.failures} loading={semaforos.loading} />
           </Panel>
         </div>
+
+        {/* Correlação: engarrafamento (Waze) × semáforos com falha */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Panel className="lg:col-span-2">
+            <PanelHeader
+              icon={MapIcon}
+              title="Waze Live Map • Tráfego ao Vivo"
+              subtitle="Cruze o engarrafamento reportado com os controladores em falha ao lado"
+            />
+            <WazeLiveMap />
+          </Panel>
+
+          <div className="flex flex-col gap-4">
+            <CongestionKpi
+              configured={waze.configured}
+              missing={waze.missing}
+              loading={waze.loading}
+              error={waze.error}
+              congestionKm={waze.congestionKm}
+              totalKm={waze.totalKm}
+              slowKm={waze.slowKm}
+              jamCount={waze.jamCount}
+              avgCongestedSpeedKmh={waze.avgCongestedSpeedKmh}
+              byLevel={waze.byLevel}
+              lastUpdated={waze.lastUpdated}
+              onRefresh={waze.refresh}
+            />
+
+            <Panel>
+              <PanelHeader
+                icon={Radar}
+                title="Leitura Correlacionada"
+                subtitle="Falha semafórica e engarrafamento no mesmo período"
+              />
+              <div className="flex flex-col gap-3 p-5 text-xs">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-text-muted">Controladores com falha</span>
+                  <span className="font-mono font-bold text-warn tabular">
+                    {formatNumber(semaforos.total - semaforos.online)}
+                    <span className="ml-1 font-normal text-text-dim">
+                      ({formatDecimal(semaforos.offline ? ((semaforos.total - semaforos.online) / semaforos.total) * 100 : 0)}%)
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-text-muted">Trechos com engarrafamento</span>
+                  <span className="font-mono font-bold text-danger tabular">
+                    {waze.configured ? formatNumber(waze.jamCount) : '—'}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-text-muted">Km engarrafados</span>
+                  <span className="font-mono font-bold text-danger tabular">
+                    {waze.configured ? `${formatDecimal(waze.congestionKm)} km` : '—'}
+                  </span>
+                </div>
+                <p className="mt-1 border-t border-corborder-soft pt-3 text-[11px] leading-relaxed text-text-dim">
+                  {waze.configured
+                    ? 'Compare os pontos vermelhos do mapa do Waze com os controladores em falha no painel acima: corredores com semáforo fora de operação tendem a concentrar retenção.'
+                    : 'O KPI de engarrafamento depende do feed do Waze for Cities. Enquanto as credenciais não estiverem configuradas, use o mapa apenas como leitura visual; nenhum km é estimado.'}
+                </p>
+              </div>
+            </Panel>
+          </div>
+        </div>
       </section>
 
       {/* Seção 4 — Mapa Operacional (ocorrências + semáforos georreferenciados) */}
@@ -219,27 +285,6 @@ export default function App() {
             onRefresh={refreshMap}
           />
         </Panel>
-
-        <Panel className="mt-4">
-          <WazeLiveMap />
-        </Panel>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <CongestionKpi
-            configured={waze.configured}
-            missing={waze.missing}
-            loading={waze.loading}
-            error={waze.error}
-            congestionKm={waze.congestionKm}
-            totalKm={waze.totalKm}
-            slowKm={waze.slowKm}
-            jamCount={waze.jamCount}
-            avgCongestedSpeedKmh={waze.avgCongestedSpeedKmh}
-            byLevel={waze.byLevel}
-            lastUpdated={waze.lastUpdated}
-            onRefresh={waze.refresh}
-          />
-        </div>
       </section>
 
       {/* Seção 5 — Monitoramento de Ocorrências em Tempo Real */}
