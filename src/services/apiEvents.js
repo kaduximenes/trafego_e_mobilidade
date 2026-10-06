@@ -150,9 +150,6 @@ async function performLogin() {
   const response = await request(`${EVENTS_API_BASE}/Login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // Em produção o proxy do servidor substitui este corpo pelas credenciais
-    // reais (server/index.js), por isso nenhum segredo vive no cliente.
-    body: JSON.stringify({}),
   })
 
   const payload = await parseJson(response)

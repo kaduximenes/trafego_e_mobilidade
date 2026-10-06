@@ -136,6 +136,11 @@ export async function fetchWazeFeedRaw(url) {
 // último resultado válido (stale) por até 5 min para não zerar o painel.
 const cache = { at: 0, data: null }
 const STALE_MAX_MS = 5 * 60 * 1000
+function sendJson(res, statusCode, payload) {
+  res.statusCode = statusCode
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify(payload))
+}
 
 export async function getWazeFeed(feedUrl) {
   if (!feedUrl) {
@@ -163,13 +168,13 @@ export function createWazeFeedHandler(env = process.env) {
     try {
       const data = await getWazeFeed(env.WAZE_FEED_URL)
       res.setHeader('Cache-Control', 'no-store')
-      res.json(data)
+      sendJson(res, 200, data)
     } catch (err) {
       if (err?.code === 'MISSING_CONFIG') {
-        res.status(503).json({ error: err.message, code: err.code })
+        sendJson(res, 503, { error: err.message, code: err.code })
         return
       }
-      res.status(err?.status && err.status >= 400 ? err.status : 502).json({
+      sendJson(res, err?.status && err.status >= 400 ? err.status : 502, {
         error: err?.message || 'Falha ao consultar o feed do Waze.',
       })
     }

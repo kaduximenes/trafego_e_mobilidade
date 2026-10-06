@@ -131,17 +131,9 @@ async function request(url, options = {}) {
 }
 
 export async function fetchControllerStatus() {
-  // Em desenvolvimento o proxy do Vite exige a API-Key vinda do cliente.
-  // Em produção a chave é injetada pelo servidor (server/index.js), portanto
-  // o cliente não a referencia e ela não entra no bundle.
-  const apiKey = import.meta.env.DEV ? import.meta.env.VITE_ANTARES_API_KEY : ''
-
   const response = await request(`${resolveBaseUrl()}${ESTADO_PATH}`, {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      ...(apiKey ? { 'API-Key': apiKey } : {}),
-    },
+    headers: { Accept: 'application/json' },
   })
 
   if (!response.ok) {
