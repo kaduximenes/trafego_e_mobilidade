@@ -50,8 +50,8 @@ export const hourlyVolume = [
 ]
 
 export const peakPeriods = {
-  morning: { label: 'Pico da Manhã', hours: '07h – 09h', color: '#FF9100' },
-  evening: { label: 'Pico da Tarde/Noite', hours: '17h – 19h', color: '#00A8FF' },
+  morning: { label: 'Pico da Manhã', hours: '07h – 09h', color: '#2a688f' },
+  evening: { label: 'Pico da Tarde/Noite', hours: '17h – 19h', color: '#42b9eb' },
 }
 
 // Ranking de principais horários
@@ -65,18 +65,18 @@ export const topHours = [
 
 // Composição do tráfego
 export const composition = [
-  { key: 'cars', label: 'Carros', value: 14590, pct: 73.0, color: '#00A8FF' },
-  { key: 'trucks', label: 'Caminhões', value: 2180, pct: 10.9, color: '#A855F7' },
+  { key: 'cars', label: 'Carros', value: 14590, pct: 73.0, color: '#42b9eb' },
+  { key: 'trucks', label: 'Caminhões', value: 2180, pct: 10.9, color: '#2a688f' },
   { key: 'motos', label: 'Motos', value: 1690, pct: 8.5, color: '#00E676' },
   { key: 'bus', label: 'Ônibus', value: 720, pct: 3.6, color: '#FF9100' },
 ]
 
 // Velocidade média por classe de veículo
 export const speedByClass = [
-  { key: 'cars', label: 'Carro', speed: 32.1, icon: 'Car', color: '#00A8FF' },
+  { key: 'cars', label: 'Carro', speed: 32.1, icon: 'Car', color: '#42b9eb' },
   { key: 'motos', label: 'Moto', speed: 34.6, icon: 'Bike', color: '#00E676' },
   { key: 'bus', label: 'Ônibus', speed: 24.8, icon: 'Bus', color: '#FF9100' },
-  { key: 'trucks', label: 'Caminhão', speed: 22.3, icon: 'Truck', color: '#A855F7' },
+  { key: 'trucks', label: 'Caminhão', speed: 22.3, icon: 'Truck', color: '#2a688f' },
 ]
 
 // Histograma de distribuição de velocidades (faixas km/h → frequência)

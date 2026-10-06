@@ -7,11 +7,11 @@ function CustomTooltip({ active, payload }) {
   const d = payload[0].payload
   return (
     <div style={chartTooltipStyle()}>
-      <p style={{ margin: 0, color: '#8b98b8', fontWeight: 600 }}>{d.label}</p>
+      <p style={{ margin: 0, color: 'var(--color-text-muted)', fontWeight: 600 }}>{d.label}</p>
       <p style={{ margin: '4px 0 0', color: d.color, fontWeight: 700 }}>
         {formatNumber(d.value)} controladores
       </p>
-      <p style={{ margin: '2px 0 0', color: '#6b7794', fontSize: 11 }}>
+      <p style={{ margin: '2px 0 0', color: 'var(--color-text-dim)', fontSize: 11 }}>
         {d.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% do total
       </p>
     </div>

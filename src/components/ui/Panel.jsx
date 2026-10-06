@@ -4,8 +4,8 @@ export function Panel({ children, className, as: Tag = 'section' }) {
   return (
     <Tag
       className={cn(
-        'rounded-2xl border border-corborder bg-corpanel/80 backdrop-blur-sm',
-        'shadow-[0_10px_30px_-15px_rgba(0,0,0,0.6)] transition-all duration-300 card-glow',
+        'rounded-lg border border-corborder bg-corpanel',
+        'shadow-[0_5px_18px_-14px_rgba(19,51,90,0.35)] transition-all duration-200 card-glow',
         className,
       )}
     >
@@ -24,7 +24,7 @@ export function PanelHeader({ title, subtitle, icon: Icon, right }) {
           </span>
         )}
         <div>
-          <h3 className="text-sm font-semibold tracking-wide text-text-main">{title}</h3>
+          <h3 className="text-sm font-semibold text-text-main">{title}</h3>
           {subtitle && <p className="mt-0.5 text-xs text-text-muted">{subtitle}</p>}
         </div>
       </div>
@@ -42,7 +42,7 @@ export function SectionTitle({ icon: Icon, title, subtitle }) {
         </span>
       )}
       <div>
-        <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-text-main">{title}</h2>
+        <h2 className="text-sm font-bold uppercase text-text-main">{title}</h2>
         {subtitle && <p className="text-xs text-text-muted">{subtitle}</p>}
       </div>
     </div>

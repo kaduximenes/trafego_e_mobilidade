@@ -13,7 +13,7 @@ function CustomTooltip({ active, payload }) {
   const item = payload[0].payload
   return (
     <div style={chartTooltipStyle()}>
-      <p style={{ margin: 0, color: '#8b98b8', fontWeight: 600 }}>{item.label}</p>
+      <p style={{ margin: 0, color: 'var(--color-text-muted)', fontWeight: 600 }}>{item.label}</p>
       <p style={{ margin: '4px 0 0', color: item.color, fontWeight: 700 }}>
         {payload[0].value} ocorrências
       </p>
@@ -53,7 +53,7 @@ export function OccurrenceTypeChart({ data = [], loading = false }) {
             height={56}
           />
           <YAxis tickLine={false} axisLine={false} width={40} allowDecimals={false} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,168,255,0.06)' }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(66,185,235,0.1)' }} />
           <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={34}>
             {chartData.map((entry) => (
               <Cell key={entry.key} fill={entry.color} fillOpacity={0.85} />

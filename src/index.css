@@ -1,37 +1,37 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', 'Roboto', system-ui, sans-serif;
+  --font-sans: 'Cera Pro', 'Century Gothic', 'Avenir Next', sans-serif;
   --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, monospace;
 
-  /* Backgrounds */
-  --color-corbase: #0b132b;
-  --color-cordeep: #070d1f;
-  --color-corpanel: #131c35;
-  --color-corpanel-2: #1a2340;
-  --color-corborder: #243049;
-  --color-corborder-soft: #1d2740;
+  /* Prefeitura do Rio digital palette */
+  --color-corbase: #eceded;
+  --color-cordeep: #ffffff;
+  --color-corpanel: #ffffff;
+  --color-corpanel-2: #f5f7f8;
+  --color-corborder: #d1dce2;
+  --color-corborder-soft: #e4e9ec;
 
-  /* Accents */
-  --color-primary: #00a8ff;
-  --color-primary-soft: #3b82f6;
-  --color-ok: #00e676;
-  --color-ok-soft: #10b981;
-  --color-warn: #ff9100;
-  --color-warn-soft: #f59e0b;
-  --color-danger: #ff1744;
-  --color-danger-soft: #ef4444;
-  --color-magenta: #ec4899;
-  --color-violet: #a855f7;
-  --color-violet-soft: #8b5cf6;
+  /* Brand accents and operational status colors */
+  --color-primary: #42b9eb;
+  --color-primary-soft: #2a688f;
+  --color-ok: #16845b;
+  --color-ok-soft: #16845b;
+  --color-warn: #a85d00;
+  --color-warn-soft: #b56a00;
+  --color-danger: #c93643;
+  --color-danger-soft: #c93643;
+  --color-magenta: #2a688f;
+  --color-violet: #2a688f;
+  --color-violet-soft: #13335a;
 
-  --color-text-main: #e2e8f0;
-  --color-text-muted: #8b98b8;
-  --color-text-dim: #64748b;
+  --color-text-main: #13335a;
+  --color-text-muted: #4c6576;
+  --color-text-dim: #6c7f8b;
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -49,9 +49,10 @@ body {
   font-family: var(--font-sans);
   background-color: var(--color-corbase);
   background-image:
-    radial-gradient(1200px 600px at 15% -10%, rgba(0, 168, 255, 0.08), transparent 60%),
-    radial-gradient(1000px 500px at 110% 10%, rgba(168, 85, 247, 0.06), transparent 55%),
-    radial-gradient(900px 700px at 50% 120%, rgba(0, 230, 118, 0.04), transparent 60%);
+    linear-gradient(135deg, rgba(42, 104, 143, 0.035) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(42, 104, 143, 0.025) 1px, transparent 1px),
+    linear-gradient(135deg, #f7f8f8, #eceded);
+  background-size: 32px 32px, 32px 32px, cover;
   background-attachment: fixed;
   color: var(--color-text-main);
   font-synthesis: none;
@@ -69,11 +70,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2b3a5e;
-  border-radius: 999px;
+  background: #b7c5cd;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b4f7c;
+  background: #8298a6;
 }
 
 @layer utilities {
@@ -82,29 +83,29 @@ body {
     font-feature-settings: 'tnum';
   }
   .text-glow {
-    text-shadow: 0 0 18px rgba(0, 168, 255, 0.45);
+    text-shadow: 0 0 16px rgba(66, 185, 235, 0.22);
   }
   .card-glow:hover {
     box-shadow:
-      0 0 0 1px rgba(0, 168, 255, 0.35),
-      0 18px 40px -18px rgba(0, 0, 0, 0.7);
+      0 0 0 1px rgba(66, 185, 235, 0.3),
+      0 14px 28px -20px rgba(19, 51, 90, 0.35);
   }
 }
 
 /* Recharts dark theme overrides */
 .recharts-cartesian-grid line {
-  stroke: rgba(139, 152, 184, 0.12);
+  stroke: rgba(19, 51, 90, 0.12);
 }
 .recharts-text {
-  fill: #8b98b8;
+  fill: #4c6576;
   font-size: 11px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 .recharts-legend-item-text {
-  color: #8b98b8 !important;
+  color: #4c6576 !important;
   font-family: var(--font-sans);
 }
 .recharts-tooltip-cursor {
-  fill: rgba(0, 168, 255, 0.06);
+  fill: rgba(66, 185, 235, 0.1);
 }
 

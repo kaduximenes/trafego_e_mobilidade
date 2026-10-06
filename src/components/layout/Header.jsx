@@ -3,21 +3,23 @@ import { period } from '../../data/mockData'
 
 export function Header() {
   return (
-    <header className="relative overflow-hidden rounded-2xl border border-corborder bg-corpanel/80 px-6 py-5 shadow-[0_14px_40px_-20px_rgba(0,0,0,0.8)]">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-violet/10" />
-      <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-primary/10 blur-3xl" />
-
-      <div className="relative flex flex-wrap items-center justify-between gap-5">
-        <div className="flex items-center gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary-soft text-cordeep shadow-[0_0_24px_rgba(0,168,255,0.4)]">
+    <header className="relative isolate overflow-hidden rounded-lg border border-[#2a688f] bg-[#13335a] px-5 py-4 shadow-[0_14px_40px_-20px_rgba(19,51,90,0.55)]">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-0 size-14 bg-[#42b9eb]"
+        style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }}
+      />
+      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+          <div className="grid size-11 shrink-0 place-items-center rounded-lg border border-white/20 bg-white/10 text-primary">
             <Radar size={26} strokeWidth={2.2} />
           </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-bold tracking-tight text-text-main md:text-2xl">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <h1 className="w-full min-w-0 flex-none text-base font-black uppercase leading-tight text-white sm:w-auto sm:flex-1 sm:basis-48 sm:text-lg md:text-xl">
                 Tráfego e Mobilidade Urbana
               </h1>
-              <span className="hidden items-center gap-1.5 rounded-full border border-ok/30 bg-ok/10 px-2.5 py-0.5 text-[11px] font-semibold text-ok sm:inline-flex">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                 <span className="relative flex size-1.5">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-ok opacity-75" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-ok" />
@@ -25,32 +27,32 @@ export function Header() {
                 Ao vivo
               </span>
             </div>
-            <p className="mt-0.5 text-sm text-text-muted">{period.label}</p>
+            <p className="mt-1 text-sm text-white/75">{period.label}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-corborder bg-cordeep/60 px-3.5 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 lg:justify-end">
+          <div className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3.5 py-2 lg:w-auto">
             <CalendarRange size={16} className="text-primary" />
-            <div className="leading-tight">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-dim">
+            <div className="min-w-0 leading-tight">
+              <p className="text-[10px] font-semibold uppercase text-white/70">
                 Período analisado
               </p>
-              <p className="font-mono text-xs text-text-main tabular">
-                {period.start} <span className="text-text-dim">→</span> {period.end}
+              <p className="break-words font-mono text-[11px] text-white tabular sm:text-xs lg:whitespace-nowrap">
+                {period.start} <span className="text-white/60">→</span> {period.end}
               </p>
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 rounded-xl border border-corborder bg-cordeep/60 px-4 py-2.5 lg:flex">
-            <div className="grid size-9 place-items-center rounded-lg bg-violet/15 text-violet">
+          <div className="hidden items-center gap-3 rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 lg:flex">
+            <div className="grid size-9 place-items-center rounded-lg bg-primary/15 text-primary">
               <Activity size={18} />
             </div>
             <div className="leading-tight">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-dim">
+              <p className="text-[10px] font-semibold uppercase text-white/70">
                 Centro de Operações
               </p>
-              <p className="text-sm font-bold text-text-main">COR.Rio • Resiliência</p>
+              <p className="text-sm font-bold text-white">COR.Rio • Resiliência</p>
             </div>
           </div>
         </div>

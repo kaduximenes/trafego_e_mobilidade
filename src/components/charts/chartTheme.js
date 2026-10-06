@@ -1,11 +1,11 @@
 const TOOLTIP_STYLE = {
-  backgroundColor: '#0d1730',
-  border: '1px solid #243049',
-  borderRadius: 10,
+  backgroundColor: '#ffffff',
+  border: '1px solid #d1dce2',
+  borderRadius: 8,
   padding: '8px 12px',
   fontSize: 12,
-  color: '#e2e8f0',
-  boxShadow: '0 12px 30px -10px rgba(0,0,0,0.7)',
+  color: '#13335a',
+  boxShadow: '0 10px 24px -12px rgba(19,51,90,0.28)',
 }
 
 export function chartTooltipStyle(extra = {}) {
@@ -13,5 +13,5 @@ export function chartTooltipStyle(extra = {}) {
 }
 
 export function tooltipLabelFormatter(label) {
-  return { color: '#8b98b8', fontWeight: 600, label }
+  return { color: '#4c6576', fontWeight: 600, label }
 }

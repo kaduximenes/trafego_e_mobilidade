@@ -4,7 +4,6 @@ import { Panel } from '../ui/Panel'
 export function KpiCard({ icon: Icon, label, value, suffix, iconClass, hint, footer }) {
   return (
     <Panel className="group relative overflow-hidden p-5">
-      <div className="pointer-events-none absolute -right-8 -top-8 size-28 rounded-full bg-primary/5 blur-2xl transition-opacity group-hover:opacity-100" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</p>
