@@ -1,4 +1,4 @@
-import { Activity, CalendarRange, Radar } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 import { period } from '../../data/mockData'
 
 export function Header() {
@@ -11,8 +11,12 @@ export function Header() {
       />
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
-          <div className="grid size-11 shrink-0 place-items-center rounded-lg border border-white/20 bg-white/10 text-primary">
-            <Radar size={26} strokeWidth={2.2} />
+          <div className="relative aspect-[368/138] w-32 shrink-0 overflow-hidden sm:w-40 lg:w-44">
+            <img
+              src="/logo-prefeitura-rio-cor.png"
+              alt="Prefeitura Rio e Centro de Operações Rio"
+              className="absolute left-[-4.35%] top-[-95.65%] h-[290%] w-[108.7%] max-w-none"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -44,17 +48,6 @@ export function Header() {
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 lg:flex">
-            <div className="grid size-9 place-items-center rounded-lg bg-primary/15 text-primary">
-              <Activity size={18} />
-            </div>
-            <div className="leading-tight">
-              <p className="text-[10px] font-semibold uppercase text-white/70">
-                Centro de Operações
-              </p>
-              <p className="text-sm font-bold text-white">COR.Rio • Resiliência</p>
-            </div>
-          </div>
         </div>
       </div>
     </header>
