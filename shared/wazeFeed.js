@@ -21,6 +21,11 @@ const USER_AGENT =
 // Jams abaixo deste nível (0–5) são fluxo livre e não interessam ao painel.
 const MIN_JAM_LEVEL = 1
 
+// O feed cobre a região metropolitana; o painel usa somente o município do Rio.
+// Itens sem cidade informada pelo Waze ficam de fora, por não ser possível confirmar o município.
+const MUNICIPIO = 'Rio de Janeiro'
+const noMunicipio = (item) => item?.city === MUNICIPIO
+
 function toNumber(raw) {
   const value = Number(raw)
   return Number.isFinite(value) ? value : null
@@ -78,12 +83,16 @@ function trimIrregularity(raw = {}) {
 
 export function parseWazeFeed(payload = {}) {
   const jams = (Array.isArray(payload.jams) ? payload.jams : [])
+    .filter(noMunicipio)
     .map(trimJam)
     .filter((jam) => jam.level >= MIN_JAM_LEVEL)
 
-  const alerts = (Array.isArray(payload.alerts) ? payload.alerts : []).map(trimAlert)
+  const alerts = (Array.isArray(payload.alerts) ? payload.alerts : [])
+    .filter(noMunicipio)
+    .map(trimAlert)
 
   const irregularities = (Array.isArray(payload.irregularities) ? payload.irregularities : [])
+    .filter(noMunicipio)
     .map(trimIrregularity)
 
   return {
