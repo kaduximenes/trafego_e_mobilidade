@@ -23,11 +23,6 @@ export const proxyRoutes = [
     resolveTarget: () => 'https://antares-cetrj.dataprom.com',
     secure: false,
   },
-  {
-    prefix: '/api/waze',
-    resolveTarget: () => 'https://www.waze.com/row-partnerhub-api',
-    secure: false,
-  },
 ]
 
 // Monta as opções no formato esperado pelo Vite (server.proxy).

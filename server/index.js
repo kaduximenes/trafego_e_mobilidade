@@ -9,6 +9,7 @@ import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { proxyRoutes } from '../shared/proxyRoutes.js'
+import { createWazeFeedHandler } from '../shared/wazeFeed.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '..', 'dist')
@@ -17,7 +18,7 @@ const PORT = process.env.PORT || 5173
 
 // Chaves consumidas apenas pelo servidor (nunca chegam ao cliente).
 const ANTARES_API_KEY = process.env.ANTARES_API_KEY || ''
-const WAZE_API_KEY = process.env.WAZE_API_KEY || ''
+const WAZE_FEED_URL = process.env.WAZE_FEED_URL || ''
 const CORIO_USERNAME = process.env.CORIO_EVENTS_USERNAME || 'APIOpenedEvent'
 const CORIO_PASSWORD = process.env.CORIO_EVENTS_PASSWORD || '12345'
 
@@ -28,9 +29,13 @@ app.get('/healthz', (_req, res) => {
   res.json({
     status: 'ok',
     antaresKeyConfigured: Boolean(ANTARES_API_KEY),
-    wazeKeyConfigured: Boolean(WAZE_API_KEY),
+    wazeFeedConfigured: Boolean(WAZE_FEED_URL),
   })
 })
+
+// Feed do Waze: o token do parceiro fica só no servidor (a URL nunca chega ao
+// navegador) e o cache evita baixar ~1 MB por visitante a cada polling.
+app.get('/api/waze-feed', createWazeFeedHandler(process.env))
 
 // Intercepta o Login do COR: o cliente não precisa conhecer as credenciais,
 // elas são injetadas aqui (e nunca entram no bundle do navegador).
@@ -54,9 +59,6 @@ for (const route of proxyRoutes) {
         proxyReq: (proxyReq, req, res) => {
           if (route.prefix === '/api/antares' && ANTARES_API_KEY) {
             proxyReq.setHeader('API-Key', ANTARES_API_KEY)
-          }
-          if (route.prefix === '/api/waze' && WAZE_API_KEY) {
-            proxyReq.setHeader('Authorization', `Bearer ${WAZE_API_KEY}`)
           }
           if (req.body && Object.keys(req.body).length > 0) {
             fixRequestBody(proxyReq, req, res)

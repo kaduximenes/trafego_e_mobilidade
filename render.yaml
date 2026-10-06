@@ -26,9 +26,7 @@ services:
         sync: false
       - key: CORIO_EVENTS_PASSWORD
         sync: false
-      - key: WAZE_API_KEY
-        sync: false
-      - key: WAZE_PARTNER_ID
+      - key: WAZE_FEED_URL
         sync: false
       # Tixxi roda em rede interna do COR e NÃO é alcançável pela internet
       # pública. Só funciona se o Render tiver rota até essa rede (VPN/Túnel).

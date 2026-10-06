@@ -19,7 +19,7 @@ function PendingState({ missing }) {
             aprovados. Nenhum número é exibido enquanto a integração não estiver habilitada.
           </p>
           <p className="mt-2 font-mono text-[10px] text-text-dim">
-            Faltando: {missing.length > 0 ? missing.join(', ') : 'VITE_WAZE_FEED_URL'}
+            Faltando no servidor: {(missing.length > 0 ? missing : ['WAZE_FEED_URL']).join(', ')}
           </p>
         </div>
       </div>
@@ -39,6 +39,7 @@ export function CongestionKpi({
   avgCongestedSpeedKmh = null,
   byLevel = [],
   lastUpdated = null,
+  stale = false,
   onRefresh,
 }) {
   if (!configured) return <PendingState missing={missing} />
@@ -142,6 +143,7 @@ export function CongestionKpi({
         {lastUpdated && (
           <span className={cn('w-full text-text-muted')}>
             Última leitura: {new Date(lastUpdated).toLocaleTimeString('pt-BR')}
+            {stale && <span className="ml-2 text-warn">• leitura anterior (feed indisponível)</span>}
           </span>
         )}
       </div>

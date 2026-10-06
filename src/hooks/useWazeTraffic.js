@@ -1,39 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MISSING_CONFIG, aggregateTraffic, fetchTrafficJams, getWazeConfig } from '../services/waze'
+import { MISSING_CONFIG, aggregateAlerts, aggregateTraffic, fetchWazeFeed } from '../services/waze'
 
 export function useWazeTraffic({ pollingMs = 120000 } = {}) {
-  const config = useMemo(() => getWazeConfig(), [])
   const [jams, setJams] = useState([])
-  const [loading, setLoading] = useState(config.ready)
+  const [alerts, setAlerts] = useState([])
+  const [feedEndMillis, setFeedEndMillis] = useState(null)
+  const [stale, setStale] = useState(false)
+  const [configured, setConfigured] = useState(true)
+  const [missing, setMissing] = useState([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
 
-  const refresh = useCallback(
-    async ({ silent = false } = {}) => {
-      if (!config.ready) return
-      if (!silent) setLoading(true)
+  const refresh = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
 
-      try {
-        const next = await fetchTrafficJams()
-        setJams(next)
+    try {
+      const feed = await fetchWazeFeed()
+      setJams(feed.jams)
+      setAlerts(feed.alerts)
+      setFeedEndMillis(feed.feedEndMillis)
+      setStale(feed.stale)
+      setConfigured(true)
+      setMissing([])
+      setError(feed.stale ? 'Servindo a última leitura válida — o feed do Waze está indisponível no momento.' : null)
+      setLastUpdated(new Date().toISOString())
+    } catch (err) {
+      // Sem `WAZE_FEED_URL` no servidor: estado "aguardando credenciais" (não é
+      // erro de rede). Nos demais casos mantém o último resultado válido para
+      // não zerar o painel em falhas transitórias.
+      if (err?.code === MISSING_CONFIG) {
+        setConfigured(false)
+        setMissing(['WAZE_FEED_URL'])
         setError(null)
-        setLastUpdated(new Date().toISOString())
-      } catch (err) {
-        // Mantém o último resultado válido no polling para não zerar o painel
-        // em falhas transitórias de rede.
-        setError(err?.code === MISSING_CONFIG ? null : err?.message || 'Erro ao carregar o tráfego do Waze.')
-      } finally {
-        if (!silent) setLoading(false)
+      } else {
+        setError(err?.message || 'Erro ao carregar o tráfego do Waze.')
       }
-    },
-    [config.ready],
-  )
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    // Sem credenciais o hook não faz polling; `loading` já inicia como false
-    // porque é derivado de config.ready no useState.
-    if (!config.ready) return undefined
-
     let cancelled = false
 
     void (async () => {
@@ -49,18 +57,23 @@ export function useWazeTraffic({ pollingMs = 120000 } = {}) {
       cancelled = true
       clearInterval(intervalId)
     }
-  }, [config.ready, pollingMs, refresh])
+  }, [pollingMs, refresh])
 
-  const summary = useMemo(() => aggregateTraffic(jams), [jams])
+  const traffic = useMemo(() => aggregateTraffic(jams), [jams])
+  const alertSummary = useMemo(() => aggregateAlerts(alerts), [alerts])
 
   return {
-    configured: config.ready,
-    missing: config.missing,
+    configured,
+    missing,
     jams,
+    alerts,
     loading,
     error,
+    stale,
     lastUpdated,
+    feedEndMillis,
     refresh,
-    ...summary,
+    ...traffic,
+    ...alertSummary,
   }
 }

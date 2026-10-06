@@ -19,6 +19,8 @@ import { CamerasSection } from './components/cameras/CamerasSection'
 import { OccurrenceDashboard } from './components/occurrences/OccurrenceDashboard'
 import { WazeLiveMap } from './components/waze/WazeLiveMap'
 import { CongestionKpi } from './components/waze/CongestionKpi'
+import { WazeTopJams } from './components/waze/WazeTopJams'
+import { WazeAlertsPanel } from './components/waze/WazeAlertsPanel'
 import { formatDecimal, formatNumber } from './utils/format'
 
 function Footer() {
@@ -211,6 +213,7 @@ export default function App() {
               avgCongestedSpeedKmh={waze.avgCongestedSpeedKmh}
               byLevel={waze.byLevel}
               lastUpdated={waze.lastUpdated}
+              stale={waze.stale}
               onRefresh={waze.refresh}
             />
 
@@ -250,6 +253,39 @@ export default function App() {
               </div>
             </Panel>
           </div>
+        </div>
+
+        {/* Detalhamento do feed Waze: vias mais retidas e alertas ativos */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Panel>
+            <PanelHeader
+              icon={MapIcon}
+              title="Congestionamento por Via"
+              subtitle="Trechos com maior extensão de retenção reportados pelo Waze"
+            />
+            <WazeTopJams
+              data={waze.topJams}
+              loading={waze.loading}
+              configured={waze.configured}
+            />
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              icon={Siren}
+              title="Alertas do Waze"
+              subtitle="Vias bloqueadas, acidentes, obras e perigos ativos na via"
+            />
+            <WazeAlertsPanel
+              alerts={waze.priorityAlerts}
+              byGroup={waze.byGroup}
+              bySeverity={waze.bySeverity}
+              loading={waze.loading}
+              configured={waze.configured}
+              lastUpdated={waze.lastUpdated}
+              onRefresh={waze.refresh}
+            />
+          </Panel>
         </div>
       </section>
 
