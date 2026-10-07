@@ -15,7 +15,7 @@ export function Header() {
             <img
               src="/logo-prefeitura-rio-cor.jpeg"
               alt="Prefeitura Rio e Centro de Operações Rio"
-              className="absolute left-[-4.35%] top-[-95.65%] h-[290%] w-[108.7%] max-w-none"
+              className="h-12 w-auto object-contain"
             />
           </div>
           <div className="min-w-0 flex-1">
