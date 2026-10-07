@@ -13,7 +13,7 @@ export function Header() {
         <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
           <div className="relative aspect-[368/138] w-32 shrink-0 overflow-hidden sm:w-40 lg:w-44">
             <img
-              src="/logo-prefeitura-rio-cor.png"
+              src="/logo-prefeitura-rio-cor.jpeg"
               alt="Prefeitura Rio e Centro de Operações Rio"
               className="absolute left-[-4.35%] top-[-95.65%] h-[290%] w-[108.7%] max-w-none"
             />
