@@ -1,13 +1,11 @@
-import { AlertTriangle, BarChart3, Camera, ChartColumn, Gauge, Lightbulb, Map as MapIcon, PieChart, Radar, RefreshCw, Siren, TrafficCone, Trophy } from 'lucide-react'
+import { AlertTriangle, BarChart3, Camera, ChartColumn, Gauge, Map as MapIcon, PieChart, Radar, RefreshCw, Siren, TrafficCone, Trophy } from 'lucide-react'
 import { useSemaforos } from './hooks/useSemaforos'
 import { useWazeTraffic } from './hooks/useWazeTraffic'
 import { Header } from './components/layout/Header'
-import { KpiSection } from './components/kpi/KpiSection'
 import { Panel, PanelHeader, SectionTitle } from './components/ui/Panel'
 import { TrafficChart } from './components/charts/TrafficChart'
 import { TopHours } from './components/sections/TopHours'
 import { Composition } from './components/sections/Composition'
-import { InsightsList } from './components/sections/InsightsList'
 import { TrafficLightKpi } from './components/trafficLights/TrafficLightKpi'
 import { TrafficLightDonut } from './components/trafficLights/TrafficLightDonut'
 import { FaultBreakdown } from './components/trafficLights/FaultBreakdown'
@@ -22,7 +20,7 @@ import { formatDecimal, formatNumber } from './utils/format'
 
 function Footer() {
   return (
-    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-corborder px-2 pt-4 text-xs text-text-dim">
+    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-corborder px-2 pt-3 text-xs text-text-dim">
       <p>© 2026 Centro de Operações e Resiliência — Monitoramento de Mobilidade Urbana</p>
       <p className="flex items-center gap-1.5">
         <span className="relative flex size-2">
@@ -40,9 +38,8 @@ export default function App() {
   const waze = useWazeTraffic({ pollingMs: 120000 })
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-5 px-4 py-5 md:px-6">
+    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-3 px-4 py-4 md:px-5">
       <Header />
-      <KpiSection />
 
       {/* Seção 0 — Câmeras ao Vivo (API Tixxi) */}
       <section>
@@ -61,7 +58,7 @@ export default function App() {
           title="Volume e Composição do Tráfego"
           subtitle="Comportamento horário e participação por tipo de veículo"
         />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
           <Panel className="lg:col-span-2">
             <PanelHeader
               icon={ChartColumn}
@@ -76,7 +73,7 @@ export default function App() {
             <TopHours />
           </Panel>
 
-          <Panel className="lg:col-span-2">
+          <Panel>
             <PanelHeader icon={PieChart} title="Composição do Tráfego" subtitle="Distribuição por tipo de veículo" />
             <Composition />
           </Panel>
@@ -108,7 +105,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <TrafficLightKpi
             loading={semaforos.loading}
             total={semaforos.total}
@@ -158,7 +155,7 @@ export default function App() {
         </div>
 
         {/* Correlação: engarrafamento (Waze) × semáforos com falha */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <Panel className="lg:col-span-2">
             <PanelHeader
               icon={MapIcon}
@@ -168,7 +165,7 @@ export default function App() {
             <WazeLiveMap />
           </Panel>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <CongestionKpi
               configured={waze.configured}
               missing={waze.missing}
@@ -191,7 +188,7 @@ export default function App() {
                 title="Leitura Correlacionada"
                 subtitle="Falha semafórica e engarrafamento no mesmo período"
               />
-              <div className="flex flex-col gap-3 p-5 text-xs">
+              <div className="flex flex-col gap-3 p-4 text-xs">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-text-muted">Controladores com falha</span>
                   <span className="font-mono font-bold text-warn tabular">
@@ -224,7 +221,7 @@ export default function App() {
         </div>
 
         {/* Detalhamento do feed Waze: vias mais retidas e alertas ativos */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Panel>
             <PanelHeader
               icon={MapIcon}
@@ -265,19 +262,6 @@ export default function App() {
           subtitle="Eventos ativos categorizados por gravidade e tipo"
         />
         <OccurrenceDashboard />
-      </section>
-
-      {/* Seção 4 — Painel Inferior de Insights */}
-      <section>
-        <SectionTitle
-          icon={Lightbulb}
-          title="Principais Insights"
-          subtitle="Leituras operacionais sobre fluxo de veículos e excesso de velocidade"
-        />
-        <Panel>
-          <PanelHeader icon={Lightbulb} title="Síntese do Período" subtitle="Análise inteligente dos últimos 30 dias de detecção" />
-          <InsightsList />
-        </Panel>
       </section>
 
       <Footer />

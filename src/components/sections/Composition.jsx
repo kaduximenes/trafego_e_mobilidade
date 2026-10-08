@@ -3,7 +3,7 @@ import { formatNumber, formatPercent } from '../../utils/format'
 
 export function Composition() {
   return (
-    <div className="grid grid-cols-1 gap-x-8 gap-y-4 p-5 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-6 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-1">
       {composition.map((c) => (
         <div key={c.key} className="group">
           <div className="mb-1.5 flex items-baseline justify-between">

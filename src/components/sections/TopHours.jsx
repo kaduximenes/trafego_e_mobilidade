@@ -11,7 +11,7 @@ const rankStyles = {
 export function TopHours() {
   const max = topHours[0].volume
   return (
-    <div className="flex flex-col gap-3 p-5">
+    <div className="flex flex-col gap-3 p-4">
       {topHours.map((t) => (
         <div key={t.rank} className="group flex items-center gap-3">
           <span

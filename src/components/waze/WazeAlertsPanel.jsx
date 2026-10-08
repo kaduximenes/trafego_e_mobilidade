@@ -66,7 +66,7 @@ export function WazeAlertsPanel({
 }) {
   if (!configured) {
     return (
-      <p className="grid h-40 place-items-center px-5 text-center text-sm text-text-muted">
+      <p className="grid h-32 place-items-center px-5 text-center text-sm text-text-muted">
         Aguardando o feed do Waze for Cities.
       </p>
     )
@@ -74,7 +74,7 @@ export function WazeAlertsPanel({
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-2.5 p-5">
+      <div className="flex flex-col gap-2.5 p-4">
         {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="h-16 animate-pulse rounded-xl border border-corborder bg-cordeep/60" />
         ))}
@@ -114,7 +114,7 @@ export function WazeAlertsPanel({
           Nenhum alerta relevante no momento.
         </p>
       ) : (
-        <div className="flex max-h-[460px] flex-col gap-2.5 overflow-y-auto p-5">
+        <div className="flex max-h-[340px] flex-col gap-2.5 overflow-y-auto p-4">
           {items.map((alert) => {
             const Icon = GROUP_ICONS[alert.groupKey] || Info
             const severityClass = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.medium

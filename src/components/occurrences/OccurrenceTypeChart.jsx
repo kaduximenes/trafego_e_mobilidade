@@ -25,19 +25,19 @@ export function OccurrenceTypeChart({ data = [], loading = false }) {
   const chartData = Array.isArray(data) ? data : []
 
   if (loading) {
-    return <div className="h-64 w-full animate-pulse rounded-2xl bg-cordeep/60 p-4" />
+    return <div className="h-52 w-full animate-pulse rounded-2xl bg-cordeep/60 p-4" />
   }
 
   if (!chartData.length) {
     return (
-      <p className="grid h-64 w-full place-items-center text-sm text-text-muted">
+      <p className="grid h-52 w-full place-items-center text-sm text-text-muted">
         Sem ocorrências para exibir no período.
       </p>
     )
   }
 
   return (
-    <div className="h-64 w-full px-2 pb-2 pt-4">
+    <div className="h-52 w-full px-2 pb-1 pt-3">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

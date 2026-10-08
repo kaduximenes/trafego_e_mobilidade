@@ -38,20 +38,20 @@ export function TrafficLightKpi({
 }) {
   if (loading) {
     return (
-      <div className="h-full min-h-[212px] animate-pulse rounded-2xl border border-corborder bg-cordeep/60" />
+      <div className="h-full min-h-[170px] animate-pulse rounded-2xl border border-corborder bg-cordeep/60" />
     )
   }
 
   const s = statusStyles[status] || statusStyles.warn
 
   return (
-    <div className="relative h-full overflow-hidden rounded-2xl border border-corborder bg-corpanel/80 p-5 backdrop-blur-sm transition-all duration-300 card-glow">
+    <div className="relative h-full overflow-hidden rounded-2xl border border-corborder bg-corpanel/80 p-4 backdrop-blur-sm transition-all duration-300 card-glow">
       <div
         className={cn('pointer-events-none absolute -right-10 -top-10 size-32 rounded-full blur-3xl', s.dot)}
         style={{ opacity: 0.12 }}
       />
 
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn('grid size-9 place-items-center rounded-lg', s.iconBox)}>

@@ -65,7 +65,7 @@ export function OccurrenceDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="lg:col-span-3">
           <SeverityCards data={severityCounts} loading={loading} />
         </div>

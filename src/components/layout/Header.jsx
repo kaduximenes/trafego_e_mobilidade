@@ -3,19 +3,19 @@ import { period } from '../../data/mockData'
 
 export function Header() {
   return (
-    <header className="relative isolate overflow-hidden rounded-lg border border-[#2a688f] bg-[#13335a] px-5 py-4 shadow-[0_14px_40px_-20px_rgba(19,51,90,0.55)]">
+    <header className="relative isolate overflow-hidden rounded-lg border border-[#2a688f] bg-[#13335a] px-4 py-3 shadow-[0_14px_40px_-20px_rgba(19,51,90,0.55)]">
       <span
         aria-hidden="true"
         className="pointer-events-none absolute right-0 top-0 size-14 bg-[#42b9eb]"
         style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }}
       />
-      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+      <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-3">
           <div className="relative aspect-[368/138] w-32 shrink-0 overflow-hidden sm:w-40 lg:w-44">
             <img
-              src="/logo-prefeitura-rio-cor.jpeg"
+              src="/logo-prefeitura-rio-cor-blue.png"
               alt="Prefeitura Rio e Centro de Operações Rio"
-              className="h-12 w-auto object-contain"
+              className="h-10 w-auto object-contain"
             />
           </div>
           <div className="min-w-0 flex-1">

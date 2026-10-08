@@ -17,7 +17,7 @@ function formatDelay(seconds) {
 export function WazeTopJams({ data = [], loading = false, configured = true }) {
   if (!configured) {
     return (
-      <p className="grid h-40 place-items-center px-5 text-center text-sm text-text-muted">
+      <p className="grid h-32 place-items-center px-5 text-center text-sm text-text-muted">
         Aguardando o feed do Waze for Cities.
       </p>
     )
@@ -25,7 +25,7 @@ export function WazeTopJams({ data = [], loading = false, configured = true }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-2.5 p-5">
+      <div className="flex flex-col gap-2.5 p-4">
         {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="h-14 animate-pulse rounded-xl border border-corborder bg-cordeep/60" />
         ))}
@@ -37,7 +37,7 @@ export function WazeTopJams({ data = [], loading = false, configured = true }) {
 
   if (!items.length) {
     return (
-      <p className="grid h-40 place-items-center px-5 text-center text-sm text-text-muted">
+      <p className="grid h-32 place-items-center px-5 text-center text-sm text-text-muted">
         Nenhum trecho com retenção no momento.
       </p>
     )
@@ -46,7 +46,7 @@ export function WazeTopJams({ data = [], loading = false, configured = true }) {
   const maxKm = Math.max(...items.map((jam) => jam.lengthKm), 0.1)
 
   return (
-    <div className="flex max-h-[420px] flex-col gap-2.5 overflow-y-auto p-5">
+    <div className="flex max-h-[320px] flex-col gap-2.5 overflow-y-auto p-4">
       {items.map((jam, index) => (
         <div
           key={jam.id}

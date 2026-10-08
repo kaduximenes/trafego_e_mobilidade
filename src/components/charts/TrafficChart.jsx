@@ -26,7 +26,7 @@ function CustomTooltip({ active, payload, label }) {
 
 export function TrafficChart() {
   return (
-    <div className="h-72 w-full px-2 pb-2 pt-4">
+    <div className="h-56 w-full px-2 pb-1 pt-3">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={hourlyVolume} margin={{ top: 10, right: 10, left: -12, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

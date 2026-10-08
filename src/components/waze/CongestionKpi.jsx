@@ -4,7 +4,7 @@ import { formatDecimal, formatNumber } from '../../utils/format'
 
 function PendingState({ missing }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-dashed border-corborder bg-corpanel/60 p-5">
+    <div className="relative overflow-hidden rounded-2xl border border-dashed border-corborder bg-corpanel/60 p-4">
       <div className="flex items-start gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
           <KeyRound size={17} />
@@ -46,7 +46,7 @@ export function CongestionKpi({
 
   if (loading) {
     return (
-      <div className="h-full min-h-[212px] animate-pulse rounded-2xl border border-corborder bg-cordeep/60" />
+      <div className="h-full min-h-[170px] animate-pulse rounded-2xl border border-corborder bg-cordeep/60" />
     )
   }
 
@@ -54,13 +54,13 @@ export function CongestionKpi({
   const accent = dominant?.color || '#EF4444'
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-corborder bg-corpanel/80 p-5 backdrop-blur-sm transition-all duration-300 card-glow">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-corborder bg-corpanel/80 p-4 backdrop-blur-sm transition-all duration-300 card-glow">
       <div
         className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full blur-3xl"
         style={{ backgroundColor: accent, opacity: 0.12 }}
       />
 
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="grid size-9 place-items-center rounded-lg bg-danger/15 text-danger">

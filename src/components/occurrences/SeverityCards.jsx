@@ -48,7 +48,7 @@ export function SeverityCards({ data = {}, loading = false }) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
           <div key={index} className="h-32 animate-pulse rounded-2xl border border-corborder bg-cordeep/60" />
         ))}
@@ -57,7 +57,7 @@ export function SeverityCards({ data = {}, loading = false }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {items.map((sev) => {
         const cfg = severityConfig[sev.key] || severityConfig.medium
         const Icon = cfg.icon
@@ -65,7 +65,7 @@ export function SeverityCards({ data = {}, loading = false }) {
           <div
             key={sev.key}
             className={cn(
-              'relative overflow-hidden rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5',
+              'relative overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:-translate-y-0.5',
               cfg.card,
               cfg.glow,
             )}

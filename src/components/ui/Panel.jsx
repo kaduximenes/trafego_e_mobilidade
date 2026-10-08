@@ -16,11 +16,11 @@ export function Panel({ children, className, as: Tag = 'section' }) {
 
 export function PanelHeader({ title, subtitle, icon: Icon, right }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-corborder-soft px-5 py-4">
-      <div className="flex items-center gap-3">
+    <div className="flex items-start justify-between gap-3 border-b border-corborder-soft px-4 py-2.5">
+      <div className="flex items-center gap-2.5">
         {Icon && (
-          <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-            <Icon size={18} strokeWidth={2} />
+          <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+            <Icon size={16} strokeWidth={2} />
           </span>
         )}
         <div>
@@ -35,10 +35,10 @@ export function PanelHeader({ title, subtitle, icon: Icon, right }) {
 
 export function SectionTitle({ icon: Icon, title, subtitle }) {
   return (
-    <div className="mb-3 flex items-center gap-2.5 px-1">
+    <div className="mb-2 flex items-center gap-2 px-1">
       {Icon && (
-        <span className="grid size-7 place-items-center rounded-md bg-primary/15 text-primary">
-          <Icon size={15} strokeWidth={2.2} />
+        <span className="grid size-6 place-items-center rounded-md bg-primary/15 text-primary">
+          <Icon size={14} strokeWidth={2.2} />
         </span>
       )}
       <div>

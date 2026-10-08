@@ -36,7 +36,7 @@ const formatTimeAgo = (timestamp) => {
 
 function FeedSkeleton() {
   return (
-    <div className="flex max-h-[480px] flex-col gap-2.5 overflow-y-auto p-5">
+    <div className="flex max-h-[360px] flex-col gap-2.5 overflow-y-auto p-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <div key={index} className="h-20 animate-pulse rounded-xl border border-corborder bg-cordeep/60" />
       ))}
@@ -82,7 +82,7 @@ export function OccurrenceFeed({ data = [], loading = false, lastUpdated = null,
           Nenhuma ocorrência em aberto no momento.
         </p>
       ) : (
-        <div className="flex max-h-[480px] flex-col gap-2.5 overflow-y-auto p-5">
+        <div className="flex max-h-[360px] flex-col gap-2.5 overflow-y-auto p-4">
           {items.map((o) => {
             const SeIcon = severityIcon[o.severity] || Info
             const TypeIcon = typeIcons[o.icon] || Info

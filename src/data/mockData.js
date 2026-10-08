@@ -7,20 +7,6 @@ export const period = {
   label: 'Análise de 24 horas • Detecção por IA',
 }
 
-export const kpis = {
-  totalRecords: 24838,
-  avgSpeed: 28.8,
-  medianSpeed: 30.2,
-  p95Speed: 40.1,
-}
-
-// Badges circulares de excesso de velocidade (com contagem de veículos)
-export const speedingBadges = [
-  { threshold: '>40', pct: 4.97, count: 992, color: 'warn' },
-  { threshold: '>50', pct: 0.32, count: 64, color: 'danger' },
-  { threshold: '>60', pct: 0.06, count: 12, color: 'magenta' },
-]
-
 // Volume de tráfego por hora (0h → 23h) — picos manhã (07h-09h) e noite (17h-19h)
 export const hourlyVolume = [
   { hour: '00h', volume: 380 },
@@ -69,45 +55,6 @@ export const composition = [
   { key: 'trucks', label: 'Caminhões', value: 2180, pct: 10.9, color: '#2a688f' },
   { key: 'motos', label: 'Motos', value: 1690, pct: 8.5, color: '#00E676' },
   { key: 'bus', label: 'Ônibus', value: 720, pct: 3.6, color: '#FF9100' },
-]
-
-export const insights = [
-  {
-    title: 'Pico matinal concentrado entre 07h e 09h',
-    text: 'O maior volume do dia ocorre às 08h (2.110 veículos), alinhado ao deslocamento pendular de entrada na cidade.',
-    tag: 'Volume',
-    color: 'primary',
-  },
-  {
-    title: 'Segundo pico expressivo no fim da tarde',
-    text: 'Entre 17h e 19h o fluxo volta a crescer e atinge 2.090 veículos às 18h, com retorno para casa e saída do trabalho.',
-    tag: 'Volume',
-    color: 'violet',
-  },
-  {
-    title: 'Carros dominam 73% do fluxo total',
-    text: 'Dos 24.838 registros, 14.590 são automóveis. Caminhões (2.180) e motos (1.690) completam as categorias motorizadas.',
-    tag: 'Composição',
-    color: 'ok',
-  },
-  {
-    title: '2,6% dos condutores acima de 40 km/h',
-    text: 'Foram 992 registros acima do limite, com 64 casos superiores a 50 km/h e 12 acima de 60 km/h — pico entre 17h e 19h.',
-    tag: 'Velocidade',
-    color: 'warn',
-  },
-  {
-    title: 'Motocicletas registram a maior média de velocidade',
-    text: 'Com 34,6 km/h, as motos superam os carros (32,1 km/h), exigindo atenção redobrada à fiscalização dessa classe.',
-    tag: 'Velocidade',
-    color: 'danger',
-  },
-  {
-    title: 'P95 de velocidade em 40,1 km/h',
-    text: '5% do fluxo trafega acima de 40 km/h, concentrando os alertas entre 17h e 19h — janela ideal para reforço de fiscalização.',
-    tag: 'Velocidade',
-    color: 'violet',
-  },
 ]
 
 // ─────────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ const severityStyles = {
 export function FaultBreakdown({ data = [], loading = false, total = 0 }) {
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex flex-col gap-3 p-4">
         {Array.from({ length: 5 }).map((_, index) => (
           <div key={index} className="h-9 animate-pulse rounded-lg bg-cordeep/60" />
         ))}
@@ -34,7 +34,7 @@ export function FaultBreakdown({ data = [], loading = false, total = 0 }) {
 
   if (!faults.length) {
     return (
-      <p className="grid h-40 place-items-center text-sm text-text-muted">
+      <p className="grid h-32 place-items-center text-sm text-text-muted">
         Nenhuma falha registrada no momento.
       </p>
     )
@@ -44,7 +44,7 @@ export function FaultBreakdown({ data = [], loading = false, total = 0 }) {
   const visible = faults.slice(0, 7)
 
   return (
-    <div className="flex flex-col gap-3 p-5">
+    <div className="flex flex-col gap-3 p-4">
       {visible.map((fault) => {
         const s = severityStyles[fault.severity] || severityStyles.warn
         const Icon = s.iconComp

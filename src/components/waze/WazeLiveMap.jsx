@@ -41,7 +41,7 @@ export function WazeLiveMap({
         </a>
       </div>
 
-      <div className="relative h-[450px] w-full">
+      <div className="relative h-[340px] w-full">
         {!loaded && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-cordeep/70">
             <span className="size-7 animate-spin rounded-full border-2 border-corborder border-t-primary" />

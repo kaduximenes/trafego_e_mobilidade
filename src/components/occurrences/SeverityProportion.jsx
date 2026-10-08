@@ -30,7 +30,7 @@ export function SeverityProportion({ data = {}, loading = false }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex flex-col gap-3 p-4">
         <div className="h-5 animate-pulse rounded-full bg-cordeep/60" />
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
@@ -42,7 +42,7 @@ export function SeverityProportion({ data = {}, loading = false }) {
   }
 
   return (
-    <div className="flex flex-col gap-5 p-5">
+    <div className="flex flex-col gap-5 p-4">
       <div className="flex h-5 w-full overflow-hidden rounded-full bg-cordeep">
         {values.map((s) => (
           <div

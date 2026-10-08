@@ -44,7 +44,7 @@ const formatSince = (timestamp) => {
 export function TrafficLightOccurrences({ data = [], loading = false }) {
   if (loading) {
     return (
-      <div className="flex max-h-[420px] flex-col gap-2.5 overflow-y-auto p-5">
+      <div className="flex max-h-[320px] flex-col gap-2.5 overflow-y-auto p-4">
         {Array.from({ length: 5 }).map((_, index) => (
           <div key={index} className="h-16 animate-pulse rounded-xl border border-corborder bg-cordeep/60" />
         ))}
@@ -56,7 +56,7 @@ export function TrafficLightOccurrences({ data = [], loading = false }) {
 
   if (!items.length) {
     return (
-      <p className="grid h-40 place-items-center text-sm text-text-muted">
+      <p className="grid h-32 place-items-center text-sm text-text-muted">
         Todos os controladores estão operando normalmente.
       </p>
     )
@@ -67,7 +67,7 @@ export function TrafficLightOccurrences({ data = [], loading = false }) {
       <div className="border-b border-corborder-soft px-5 py-2.5 text-[11px] font-medium uppercase tracking-wide text-text-dim">
         {items.length} controladores com falha
       </div>
-      <div className="flex max-h-[420px] flex-col gap-2.5 overflow-y-auto p-5">
+      <div className="flex max-h-[320px] flex-col gap-2.5 overflow-y-auto p-4">
         {items.map((c) => {
           const s = groupStyles[c.groupKey] || groupStyles.alarm
           const Icon = s.iconComp

@@ -21,8 +21,8 @@ function CustomTooltip({ active, payload }) {
 export function TrafficLightDonut({ data = [], loading = false, total = 0, normalCount = 0 }) {
   if (loading) {
     return (
-      <div className="flex h-full flex-col gap-4 p-5">
-        <div className="mx-auto h-48 w-48 animate-pulse rounded-full bg-cordeep/60" />
+      <div className="flex h-full flex-col gap-3 p-4">
+        <div className="mx-auto h-40 w-40 animate-pulse rounded-full bg-cordeep/60" />
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="h-4 animate-pulse rounded bg-cordeep/60" />
@@ -36,7 +36,7 @@ export function TrafficLightDonut({ data = [], loading = false, total = 0, norma
 
   if (!distribution.length) {
     return (
-      <p className="grid h-64 place-items-center text-sm text-text-muted">
+      <p className="grid h-52 place-items-center text-sm text-text-muted">
         Sem dados de controladores para exibir.
       </p>
     )
@@ -44,7 +44,7 @@ export function TrafficLightDonut({ data = [], loading = false, total = 0, norma
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative h-48 w-full">
+      <div className="relative h-40 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip content={<CustomTooltip />} />
