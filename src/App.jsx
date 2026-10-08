@@ -148,7 +148,6 @@ export default function App() {
             <WazeAlertsPanel
               alerts={waze.priorityAlerts}
               byGroup={waze.byGroup}
-              bySeverity={waze.bySeverity}
               loading={waze.loading}
               configured={waze.configured}
               lastUpdated={waze.lastUpdated}

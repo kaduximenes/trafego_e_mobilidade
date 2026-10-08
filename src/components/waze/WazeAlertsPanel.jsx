@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { Ban, Car, CircleAlert, Clock, Construction, Droplets, Info, MapPin, OctagonAlert, RefreshCw, TriangleAlert, Wrench } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { formatNumber } from '../../utils/format'
@@ -22,6 +23,9 @@ const SEVERITY_STYLES = {
 }
 
 const SEVERITY_LABELS = { high: 'Alta', medium: 'Média', low: 'Baixa' }
+const SEVERITY_ORDER = ['high', 'medium', 'low']
+const EMPTY_ALERTS = []
+const EMPTY_GROUPS = []
 
 const formatTimeAgo = (timestamp) => {
   if (!timestamp) return 'agora'
@@ -33,22 +37,52 @@ const formatTimeAgo = (timestamp) => {
   return `há ${Math.floor(hours / 24)}d`
 }
 
-function GroupChips({ groups = [] }) {
+function GroupChips({ groups = [], alerts = [], selectedGroup, selectedSeverity, onSelect }) {
   if (!groups.length) return null
+
+  const severityFilteredAlerts = selectedSeverity
+    ? alerts.filter((alert) => alert.severity === selectedSeverity)
+    : alerts
+  const counts = new Map()
+  for (const alert of severityFilteredAlerts) {
+    counts.set(alert.groupKey, (counts.get(alert.groupKey) || 0) + 1)
+  }
+  const buttonClass = (active) =>
+    cn(
+      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors',
+      active
+        ? 'border-primary/60 bg-primary/15 text-text-main'
+        : 'border-corborder-soft bg-cordeep/50 text-text-muted hover:border-corborder hover:text-text-main',
+    )
 
   return (
     <div className="flex flex-wrap gap-1.5 border-b border-corborder-soft px-5 py-3">
+      <button
+        type="button"
+        aria-pressed={!selectedGroup}
+        onClick={() => onSelect(null)}
+        className={buttonClass(!selectedGroup)}
+      >
+        Todos
+        <span className="font-mono font-bold tabular">{formatNumber(severityFilteredAlerts.length)}</span>
+      </button>
       {groups.map((group) => {
         const Icon = GROUP_ICONS[group.key] || Info
+        const count = counts.get(group.key) || 0
+        if (!count) return null
+
         return (
-          <span
+          <button
+            type="button"
             key={group.key}
-            className="inline-flex items-center gap-1.5 rounded-full border border-corborder-soft bg-cordeep/50 px-2.5 py-1 text-[10px] font-medium text-text-muted"
+            aria-pressed={selectedGroup === group.key}
+            onClick={() => onSelect(selectedGroup === group.key ? null : group.key)}
+            className={buttonClass(selectedGroup === group.key)}
           >
             <Icon size={11} className="text-text-dim" />
             {group.label}
-            <span className="font-mono font-bold text-text-main tabular">{formatNumber(group.count)}</span>
-          </span>
+            <span className="font-mono font-bold tabular">{formatNumber(count)}</span>
+          </button>
         )
       })}
     </div>
@@ -56,14 +90,48 @@ function GroupChips({ groups = [] }) {
 }
 
 export function WazeAlertsPanel({
-  alerts = [],
-  byGroup = [],
-  bySeverity = { high: 0, medium: 0, low: 0 },
+  alerts = EMPTY_ALERTS,
+  byGroup = EMPTY_GROUPS,
   loading = false,
   configured = true,
   lastUpdated = null,
   onRefresh,
 }) {
+  const [selectedGroup, setSelectedGroup] = useState(null)
+  const [selectedSeverity, setSelectedSeverity] = useState(null)
+  const items = useMemo(() => (Array.isArray(alerts) ? alerts : EMPTY_ALERTS), [alerts])
+  const filteredItems = useMemo(
+    () =>
+      items.filter(
+        (alert) =>
+          (!selectedGroup || alert.groupKey === selectedGroup) &&
+          (!selectedSeverity || alert.severity === selectedSeverity),
+      ),
+    [items, selectedGroup, selectedSeverity],
+  )
+  const groups = useMemo(() => {
+    const severityFilteredItems = selectedSeverity
+      ? items.filter((alert) => alert.severity === selectedSeverity)
+      : items
+    const counts = new Map()
+    for (const alert of severityFilteredItems) {
+      counts.set(alert.groupKey, (counts.get(alert.groupKey) || 0) + 1)
+    }
+    return byGroup.map((group) => ({ ...group, count: counts.get(group.key) || 0 }))
+  }, [byGroup, items, selectedSeverity])
+  const severityCounts = useMemo(() => {
+    const groupFilteredItems = selectedGroup
+      ? items.filter((alert) => alert.groupKey === selectedGroup)
+      : items
+    return Object.fromEntries(
+      SEVERITY_ORDER.map((severity) => [
+        severity,
+        groupFilteredItems.filter((alert) => alert.severity === severity).length,
+      ]),
+    )
+  }, [items, selectedGroup])
+  const hasFilters = selectedGroup !== null || selectedSeverity !== null
+
   if (!configured) {
     return (
       <p className="grid h-32 place-items-center px-5 text-center text-sm text-text-muted">
@@ -82,21 +150,52 @@ export function WazeAlertsPanel({
     )
   }
 
-  const items = Array.isArray(alerts) ? alerts : []
-
   return (
     <div className="flex flex-col">
-      <GroupChips groups={byGroup} />
+      <GroupChips
+        groups={groups}
+        alerts={items}
+        selectedGroup={selectedGroup}
+        selectedSeverity={selectedSeverity}
+        onSelect={setSelectedGroup}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-corborder-soft px-5 py-2.5 text-[11px] text-text-dim">
-        <span className="font-medium uppercase tracking-wide">
-          {formatNumber(items.length)} alertas ativos
-          <span className="ml-2 font-normal normal-case tracking-normal text-text-muted">
-            • Alta <span className="font-mono font-bold text-danger tabular">{formatNumber(bySeverity.high)}</span> • Média{' '}
-            <span className="font-mono font-bold text-warn tabular">{formatNumber(bySeverity.medium)}</span> • Baixa{' '}
-            <span className="font-mono font-bold text-primary-soft tabular">{formatNumber(bySeverity.low)}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium uppercase tracking-wide">
+            {formatNumber(filteredItems.length)} alertas ativos
           </span>
-        </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {SEVERITY_ORDER.map((severity) => (
+              <button
+                key={severity}
+                type="button"
+                aria-pressed={selectedSeverity === severity}
+                onClick={() => setSelectedSeverity(selectedSeverity === severity ? null : severity)}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 font-medium transition-colors',
+                  selectedSeverity === severity
+                    ? SEVERITY_STYLES[severity]
+                    : 'border-corborder-soft text-text-muted hover:border-corborder hover:text-text-main',
+                )}
+              >
+                {SEVERITY_LABELS[severity]} {formatNumber(severityCounts[severity])}
+              </button>
+            ))}
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGroup(null)
+                  setSelectedSeverity(null)
+                }}
+                className="px-1.5 py-0.5 font-semibold text-primary-soft transition-colors hover:text-text-main"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        </div>
         {onRefresh && (
           <button
             type="button"
@@ -109,13 +208,13 @@ export function WazeAlertsPanel({
         )}
       </div>
 
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <p className="px-5 py-10 text-center text-sm text-text-muted">
-          Nenhum alerta relevante no momento.
+          {hasFilters ? 'Nenhum alerta corresponde aos filtros selecionados.' : 'Nenhum alerta relevante no momento.'}
         </p>
       ) : (
         <div className="flex max-h-[340px] flex-col gap-2.5 overflow-y-auto p-4">
-          {items.map((alert) => {
+          {filteredItems.map((alert) => {
             const Icon = GROUP_ICONS[alert.groupKey] || Info
             const severityClass = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.medium
             return (

@@ -274,7 +274,6 @@ export function aggregateAlerts(alerts = []) {
       (a, b) =>
         (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) || b.updatedAt - a.updatedAt,
     )
-    .slice(0, 12)
 
   return {
     alertCount: list.length,
