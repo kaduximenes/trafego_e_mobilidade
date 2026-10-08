@@ -5,11 +5,8 @@ import { Header } from './components/layout/Header'
 import { KpiSection } from './components/kpi/KpiSection'
 import { Panel, PanelHeader, SectionTitle } from './components/ui/Panel'
 import { TrafficChart } from './components/charts/TrafficChart'
-import { SpeedHistogram } from './components/charts/SpeedHistogram'
 import { TopHours } from './components/sections/TopHours'
 import { Composition } from './components/sections/Composition'
-import { SpeedByClass } from './components/sections/SpeedByClass'
-import { Percentiles } from './components/sections/Percentiles'
 import { InsightsList } from './components/sections/InsightsList'
 import { TrafficLightKpi } from './components/trafficLights/TrafficLightKpi'
 import { TrafficLightDonut } from './components/trafficLights/TrafficLightDonut'
@@ -86,36 +83,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* Seção 2 — Velocidade e Distribuição */}
-      <section>
-        <SectionTitle
-          icon={Gauge}
-          title="Velocidade e Distribuição"
-          subtitle="Análise por classe de veículo e dispersão do fluxo"
-        />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Panel>
-            <PanelHeader icon={Gauge} title="Velocidade Média por Classe" subtitle="Média em km/h por veículo" />
-            <SpeedByClass />
-          </Panel>
-
-          <Panel className="lg:col-span-2">
-            <PanelHeader
-              icon={ChartColumn}
-              title="Distribuição de Velocidades"
-              subtitle="Histograma de frequência por faixa km/h"
-            />
-            <SpeedHistogram />
-          </Panel>
-
-          <Panel className="lg:col-span-3">
-            <PanelHeader icon={Radar} title="Percentis de Velocidade" subtitle="Curva de dispersão do fluxo" />
-            <Percentiles />
-          </Panel>
-        </div>
-      </section>
-
-      {/* Seção 3 — Saúde e Operação dos Semáforos (API Dataprom/Antares) */}
+      {/* Seção 2 — Saúde e Operação dos Semáforos (API Dataprom/Antares) */}
       <section>
         <SectionTitle
           icon={TrafficCone}
@@ -289,7 +257,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* Seção 4 — Monitoramento de Ocorrências em Tempo Real */}
+      {/* Seção 3 — Monitoramento de Ocorrências em Tempo Real */}
       <section>
         <SectionTitle
           icon={Siren}
@@ -299,7 +267,7 @@ export default function App() {
         <OccurrenceDashboard />
       </section>
 
-      {/* Seção 6 — Painel Inferior de Insights */}
+      {/* Seção 4 — Painel Inferior de Insights */}
       <section>
         <SectionTitle
           icon={Lightbulb}

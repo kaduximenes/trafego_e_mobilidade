@@ -71,38 +71,6 @@ export const composition = [
   { key: 'bus', label: 'Ônibus', value: 720, pct: 3.6, color: '#FF9100' },
 ]
 
-// Velocidade média por classe de veículo
-export const speedByClass = [
-  { key: 'cars', label: 'Carro', speed: 32.1, icon: 'Car', color: '#42b9eb' },
-  { key: 'motos', label: 'Moto', speed: 34.6, icon: 'Bike', color: '#00E676' },
-  { key: 'bus', label: 'Ônibus', speed: 24.8, icon: 'Bus', color: '#FF9100' },
-  { key: 'trucks', label: 'Caminhão', speed: 22.3, icon: 'Truck', color: '#2a688f' },
-]
-
-// Histograma de distribuição de velocidades (faixas km/h → frequência)
-export const speedHistogram = [
-  { range: '0–10', freq: 180 },
-  { range: '10–15', freq: 420 },
-  { range: '15–20', freq: 1420 },
-  { range: '20–25', freq: 3010 },
-  { range: '25–30', freq: 4380 },
-  { range: '30–35', freq: 4950 },
-  { range: '35–40', freq: 3380 },
-  { range: '40–45', freq: 1610 },
-  { range: '45–50', freq: 520 },
-  { range: '50–55', freq: 96 },
-  { range: '55–60', freq: 14 },
-  { range: '60+', freq: 2 },
-]
-
-export const percentiles = [
-  { label: 'P25', value: 24.6, color: '#00A8FF' },
-  { label: 'P50', value: 30.2, color: '#00E676' },
-  { label: 'P75', value: 35.1, color: '#FF9100' },
-  { label: 'P85', value: 38.4, color: '#A855F7' },
-  { label: 'P95', value: 40.1, color: '#FF1744' },
-]
-
 export const insights = [
   {
     title: 'Pico matinal concentrado entre 07h e 09h',
