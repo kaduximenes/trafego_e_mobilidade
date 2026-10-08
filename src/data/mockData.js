@@ -49,14 +49,6 @@ export const topHours = [
   { rank: 5, hour: '19h', volume: 1660, pct: 6.7 },
 ]
 
-// Composição do tráfego
-export const composition = [
-  { key: 'cars', label: 'Carros', value: 14590, pct: 73.0, color: '#42b9eb' },
-  { key: 'trucks', label: 'Caminhões', value: 2180, pct: 10.9, color: '#2a688f' },
-  { key: 'motos', label: 'Motos', value: 1690, pct: 8.5, color: '#00E676' },
-  { key: 'bus', label: 'Ônibus', value: 720, pct: 3.6, color: '#FF9100' },
-]
-
 // ─────────────────────────────────────────────────────────────
 // Módulo: Monitoramento de Ocorrências em Tempo Real
 // ─────────────────────────────────────────────────────────────

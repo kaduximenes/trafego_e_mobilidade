@@ -5,7 +5,6 @@ import { Header } from './components/layout/Header'
 import { Panel, PanelHeader, SectionTitle } from './components/ui/Panel'
 import { TrafficChart } from './components/charts/TrafficChart'
 import { TopHours } from './components/sections/TopHours'
-import { Composition } from './components/sections/Composition'
 import { TrafficLightKpi } from './components/trafficLights/TrafficLightKpi'
 import { TrafficLightDonut } from './components/trafficLights/TrafficLightDonut'
 import { FaultBreakdown } from './components/trafficLights/FaultBreakdown'
@@ -41,24 +40,132 @@ export default function App() {
     <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-3 px-4 py-4 md:px-5">
       <Header />
 
-      {/* Seção 0 — Câmeras ao Vivo (API Tixxi) */}
+      {/* Seção 0 — Monitoramento de Ocorrências em Tempo Real */}
       <section>
         <SectionTitle
-          icon={Camera}
-          title="Câmeras ao Vivo"
-          subtitle="Monitoramento em tempo real da rede de câmeras Tixxi"
+          icon={Siren}
+          title="Monitoramento de Ocorrências"
+          subtitle="Eventos ativos categorizados por gravidade e tipo"
         />
-        <CamerasSection />
+        <OccurrenceDashboard />
       </section>
 
-      {/* Seção 1 — Volume e Composição do Tráfego */}
+      {/* Seção 1 — Waze • Tráfego ao Vivo (API Waze for Cities) */}
+      <section>
+        <SectionTitle
+          icon={MapIcon}
+          title="Waze • Tráfego ao Vivo"
+          subtitle="Engarrafamento e alertas reportados em tempo real"
+        />
+
+        {/* Correlação: engarrafamento (Waze) × semáforos com falha */}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <Panel className="lg:col-span-2">
+            <PanelHeader
+              icon={MapIcon}
+              title="Waze Live Map • Tráfego ao Vivo"
+              subtitle="Engarrafamento ao vivo — cruze com os controladores em falha em Saúde dos Semáforos"
+            />
+            <WazeLiveMap />
+          </Panel>
+
+          <div className="flex flex-col gap-3">
+            <CongestionKpi
+              configured={waze.configured}
+              missing={waze.missing}
+              loading={waze.loading}
+              error={waze.error}
+              congestionKm={waze.congestionKm}
+              totalKm={waze.totalKm}
+              slowKm={waze.slowKm}
+              jamCount={waze.jamCount}
+              avgCongestedSpeedKmh={waze.avgCongestedSpeedKmh}
+              byLevel={waze.byLevel}
+              lastUpdated={waze.lastUpdated}
+              stale={waze.stale}
+              onRefresh={waze.refresh}
+            />
+
+            <Panel>
+              <PanelHeader
+                icon={Radar}
+                title="Leitura Correlacionada"
+                subtitle="Falha semafórica e engarrafamento no mesmo período"
+              />
+              <div className="flex flex-col gap-3 p-4 text-xs">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-text-muted">Controladores com falha</span>
+                  <span className="font-mono font-bold text-warn tabular">
+                    {formatNumber(semaforos.total - semaforos.online)}
+                    <span className="ml-1 font-normal text-text-dim">
+                      ({formatDecimal(semaforos.offline ? ((semaforos.total - semaforos.online) / semaforos.total) * 100 : 0)}%)
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-text-muted">Trechos com engarrafamento</span>
+                  <span className="font-mono font-bold text-danger tabular">
+                    {waze.configured ? formatNumber(waze.jamCount) : '—'}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-text-muted">Km engarrafados</span>
+                  <span className="font-mono font-bold text-danger tabular">
+                    {waze.configured ? `${formatDecimal(waze.congestionKm)} km` : '—'}
+                  </span>
+                </div>
+                <p className="mt-1 border-t border-corborder-soft pt-3 text-[11px] leading-relaxed text-text-dim">
+                  {waze.configured
+                    ? 'Compare os pontos vermelhos do mapa do Waze com os controladores em falha na seção Saúde e Operação dos Semáforos: corredores com semáforo fora de operação tendem a concentrar retenção.'
+                    : 'O KPI de engarrafamento depende do feed do Waze for Cities. Enquanto as credenciais não estiverem configuradas, use o mapa apenas como leitura visual; nenhum km é estimado.'}
+                </p>
+              </div>
+            </Panel>
+          </div>
+        </div>
+
+        {/* Detalhamento do feed Waze: vias mais retidas e alertas ativos */}
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <Panel>
+            <PanelHeader
+              icon={MapIcon}
+              title="Congestionamento por Via"
+              subtitle="Trechos com maior extensão de retenção reportados pelo Waze"
+            />
+            <WazeTopJams
+              data={waze.topJams}
+              loading={waze.loading}
+              configured={waze.configured}
+            />
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              icon={Siren}
+              title="Alertas do Waze"
+              subtitle="Vias bloqueadas, acidentes, obras e perigos ativos na via"
+            />
+            <WazeAlertsPanel
+              alerts={waze.priorityAlerts}
+              byGroup={waze.byGroup}
+              bySeverity={waze.bySeverity}
+              loading={waze.loading}
+              configured={waze.configured}
+              lastUpdated={waze.lastUpdated}
+              onRefresh={waze.refresh}
+            />
+          </Panel>
+        </div>
+      </section>
+
+      {/* Seção 2 — Volume de Tráfego */}
       <section>
         <SectionTitle
           icon={BarChart3}
-          title="Volume e Composição do Tráfego"
-          subtitle="Comportamento horário e participação por tipo de veículo"
+          title="Volume de Tráfego"
+          subtitle="Comportamento horário do fluxo veicular e horários de pico"
         />
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <Panel className="lg:col-span-2">
             <PanelHeader
               icon={ChartColumn}
@@ -72,15 +179,20 @@ export default function App() {
             <PanelHeader icon={Trophy} title="Principais Horários" subtitle="Ranking de pico (1º ao 5º)" />
             <TopHours />
           </Panel>
-
-          <Panel>
-            <PanelHeader icon={PieChart} title="Composição do Tráfego" subtitle="Distribuição por tipo de veículo" />
-            <Composition />
-          </Panel>
         </div>
       </section>
 
-      {/* Seção 2 — Saúde e Operação dos Semáforos (API Dataprom/Antares) */}
+      {/* Seção 3 — Câmeras ao Vivo (API Tixxi) */}
+      <section>
+        <SectionTitle
+          icon={Camera}
+          title="Câmeras ao Vivo"
+          subtitle="Monitoramento em tempo real da rede de câmeras Tixxi"
+        />
+        <CamerasSection />
+      </section>
+
+      {/* Seção 4 — Saúde e Operação dos Semáforos (API Dataprom/Antares) */}
       <section>
         <SectionTitle
           icon={TrafficCone}
@@ -153,115 +265,6 @@ export default function App() {
             <TrafficLightOccurrences data={semaforos.failures} loading={semaforos.loading} />
           </Panel>
         </div>
-
-        {/* Correlação: engarrafamento (Waze) × semáforos com falha */}
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <Panel className="lg:col-span-2">
-            <PanelHeader
-              icon={MapIcon}
-              title="Waze Live Map • Tráfego ao Vivo"
-              subtitle="Cruze o engarrafamento reportado com os controladores em falha ao lado"
-            />
-            <WazeLiveMap />
-          </Panel>
-
-          <div className="flex flex-col gap-3">
-            <CongestionKpi
-              configured={waze.configured}
-              missing={waze.missing}
-              loading={waze.loading}
-              error={waze.error}
-              congestionKm={waze.congestionKm}
-              totalKm={waze.totalKm}
-              slowKm={waze.slowKm}
-              jamCount={waze.jamCount}
-              avgCongestedSpeedKmh={waze.avgCongestedSpeedKmh}
-              byLevel={waze.byLevel}
-              lastUpdated={waze.lastUpdated}
-              stale={waze.stale}
-              onRefresh={waze.refresh}
-            />
-
-            <Panel>
-              <PanelHeader
-                icon={Radar}
-                title="Leitura Correlacionada"
-                subtitle="Falha semafórica e engarrafamento no mesmo período"
-              />
-              <div className="flex flex-col gap-3 p-4 text-xs">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-text-muted">Controladores com falha</span>
-                  <span className="font-mono font-bold text-warn tabular">
-                    {formatNumber(semaforos.total - semaforos.online)}
-                    <span className="ml-1 font-normal text-text-dim">
-                      ({formatDecimal(semaforos.offline ? ((semaforos.total - semaforos.online) / semaforos.total) * 100 : 0)}%)
-                    </span>
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-text-muted">Trechos com engarrafamento</span>
-                  <span className="font-mono font-bold text-danger tabular">
-                    {waze.configured ? formatNumber(waze.jamCount) : '—'}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-text-muted">Km engarrafados</span>
-                  <span className="font-mono font-bold text-danger tabular">
-                    {waze.configured ? `${formatDecimal(waze.congestionKm)} km` : '—'}
-                  </span>
-                </div>
-                <p className="mt-1 border-t border-corborder-soft pt-3 text-[11px] leading-relaxed text-text-dim">
-                  {waze.configured
-                    ? 'Compare os pontos vermelhos do mapa do Waze com os controladores em falha no painel acima: corredores com semáforo fora de operação tendem a concentrar retenção.'
-                    : 'O KPI de engarrafamento depende do feed do Waze for Cities. Enquanto as credenciais não estiverem configuradas, use o mapa apenas como leitura visual; nenhum km é estimado.'}
-                </p>
-              </div>
-            </Panel>
-          </div>
-        </div>
-
-        {/* Detalhamento do feed Waze: vias mais retidas e alertas ativos */}
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <Panel>
-            <PanelHeader
-              icon={MapIcon}
-              title="Congestionamento por Via"
-              subtitle="Trechos com maior extensão de retenção reportados pelo Waze"
-            />
-            <WazeTopJams
-              data={waze.topJams}
-              loading={waze.loading}
-              configured={waze.configured}
-            />
-          </Panel>
-
-          <Panel>
-            <PanelHeader
-              icon={Siren}
-              title="Alertas do Waze"
-              subtitle="Vias bloqueadas, acidentes, obras e perigos ativos na via"
-            />
-            <WazeAlertsPanel
-              alerts={waze.priorityAlerts}
-              byGroup={waze.byGroup}
-              bySeverity={waze.bySeverity}
-              loading={waze.loading}
-              configured={waze.configured}
-              lastUpdated={waze.lastUpdated}
-              onRefresh={waze.refresh}
-            />
-          </Panel>
-        </div>
-      </section>
-
-      {/* Seção 3 — Monitoramento de Ocorrências em Tempo Real */}
-      <section>
-        <SectionTitle
-          icon={Siren}
-          title="Monitoramento de Ocorrências"
-          subtitle="Eventos ativos categorizados por gravidade e tipo"
-        />
-        <OccurrenceDashboard />
       </section>
 
       <Footer />
