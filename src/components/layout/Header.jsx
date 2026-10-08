@@ -1,4 +1,3 @@
-import { CalendarRange } from 'lucide-react'
 import { period } from '../../data/mockData'
 
 export function Header() {
@@ -35,20 +34,6 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-3 lg:justify-end">
-          <div className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3.5 py-2 lg:w-auto">
-            <CalendarRange size={16} className="text-primary" />
-            <div className="min-w-0 leading-tight">
-              <p className="text-[10px] font-semibold uppercase text-white/70">
-                Período analisado
-              </p>
-              <p className="break-words font-mono text-[11px] text-white tabular sm:text-xs lg:whitespace-nowrap">
-                {period.start} <span className="text-white/60">→</span> {period.end}
-              </p>
-            </div>
-          </div>
-
-        </div>
       </div>
     </header>
   )
