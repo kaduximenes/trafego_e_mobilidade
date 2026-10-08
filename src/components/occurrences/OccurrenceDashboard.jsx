@@ -1,16 +1,20 @@
 import { AlertTriangle, RefreshCw, X } from 'lucide-react'
 import { useState } from 'react'
-import { useFetchEvents } from '../../hooks/useFetchEvents'
 import { Panel } from '../ui/Panel'
 import { SeverityCards } from './SeverityCards'
 import { SeverityProportion } from './SeverityProportion'
 import { OccurrenceTypeChart } from './OccurrenceTypeChart'
 import { OccurrenceFeed } from './OccurrenceFeed'
 
-export function OccurrenceDashboard() {
-  const { loading, error, lastUpdated, refresh, severityCounts, typeCounts, feed } = useFetchEvents({
-    pollingMs: 60000,
-  })
+export function OccurrenceDashboard({
+  loading,
+  error,
+  lastUpdated,
+  refresh,
+  severityCounts,
+  typeCounts,
+  feed,
+}) {
   const [dismissedError, setDismissedError] = useState(null)
 
   // Exibe o toast enquanto o erro for novo; após dispensado, prevalece o alerta inline.

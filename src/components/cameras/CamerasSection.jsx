@@ -1,50 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AlertTriangle, Camera, LoaderCircle, RefreshCw, Search } from 'lucide-react'
-import { getCameras, getStatusInfo } from '../../services/tixxi'
+import { getStatusInfo } from '../../services/tixxi'
 import { CameraCard } from './CameraCard'
 import { CameraSummary } from './CameraSummary'
 import { cn } from '../../utils/cn'
 
 const PAGE_SIZE = 12
 
-export function CamerasSection() {
-  const [cameras, setCameras] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+export function CamerasSection({ cameras = [], loading = false, error = null, refresh }) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [visible, setVisible] = useState(PAGE_SIZE)
-
-  async function load() {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await getCameras()
-      setCameras(data)
-    } catch (err) {
-      setError(err.message || 'Erro ao carregar câmeras')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false
-    async function init() {
-      try {
-        const data = await getCameras()
-        if (!cancelled) setCameras(data)
-      } catch (err) {
-        if (!cancelled) setError(err.message || 'Erro ao carregar câmeras')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    init()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const counts = useMemo(() => {
     const c = { total: cameras.length }
@@ -102,15 +68,17 @@ export function CamerasSection() {
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-corborder bg-cordeep/60 px-3 py-2 text-xs font-medium text-text-muted transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
-        >
-          <RefreshCw size={13} className={cn(loading && 'animate-spin')} />
-          Atualizar
-        </button>
+        {refresh && (
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-corborder bg-cordeep/60 px-3 py-2 text-xs font-medium text-text-muted transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={cn(loading && 'animate-spin')} />
+            Atualizar
+          </button>
+        )}
       </div>
 
       {/* Estados de carregamento / erro */}

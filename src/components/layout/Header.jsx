@@ -1,6 +1,7 @@
+import { ArrowLeft, LayoutDashboard } from 'lucide-react'
 import { period } from '../../data/mockData'
 
-export function Header() {
+export function Header({ summaryOpen = false, onToggleSummary }) {
   return (
     <header className="relative isolate overflow-hidden rounded-lg border border-[#2a688f] bg-[#13335a] px-4 py-3 shadow-[0_14px_40px_-20px_rgba(19,51,90,0.55)]">
       <span
@@ -33,7 +34,16 @@ export function Header() {
             <p className="mt-1 text-sm text-white/75">{period.label}</p>
           </div>
         </div>
-
+        {onToggleSummary && (
+          <button
+            type="button"
+            onClick={onToggleSummary}
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/15 lg:self-auto"
+          >
+            {summaryOpen ? <ArrowLeft size={15} /> : <LayoutDashboard size={15} />}
+            {summaryOpen ? 'Voltar ao painel' : 'Resumo dos indicadores'}
+          </button>
+        )}
       </div>
     </header>
   )

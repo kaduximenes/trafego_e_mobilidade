@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { AlertTriangle, BarChart3, Camera, ChartColumn, Gauge, Map as MapIcon, PieChart, Radar, RefreshCw, Siren, TrafficCone, Trophy } from 'lucide-react'
 import { useSemaforos } from './hooks/useSemaforos'
 import { useWazeTraffic } from './hooks/useWazeTraffic'
+import { useOpenEvents } from './hooks/useOpenEvents'
+import { useCameras } from './hooks/useCameras'
 import { Header } from './components/layout/Header'
+import { IndicatorsSummary } from './components/layout/IndicatorsSummary'
 import { Panel, PanelHeader, SectionTitle } from './components/ui/Panel'
 import { TrafficChart } from './components/charts/TrafficChart'
 import { TopHours } from './components/sections/TopHours'
@@ -35,11 +39,29 @@ function Footer() {
 export default function App() {
   const semaforos = useSemaforos({ pollingMs: 60000 })
   const waze = useWazeTraffic({ pollingMs: 120000 })
+  const occurrences = useOpenEvents({ pollingMs: 60000 })
+  const cameras = useCameras()
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-3 px-4 py-4 md:px-5">
-      <Header />
+      <Header
+        summaryOpen={summaryOpen}
+        onToggleSummary={() => {
+          setSummaryOpen((open) => !open)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
 
+      {summaryOpen ? (
+        <IndicatorsSummary
+          occurrences={occurrences}
+          waze={waze}
+          cameras={cameras}
+          semaforos={semaforos}
+        />
+      ) : (
+        <>
       {/* Seção 0 — Monitoramento de Ocorrências em Tempo Real */}
       <section>
         <SectionTitle
@@ -47,7 +69,7 @@ export default function App() {
           title="Monitoramento de Ocorrências"
           subtitle="Eventos ativos categorizados por gravidade e tipo"
         />
-        <OccurrenceDashboard />
+        <OccurrenceDashboard {...occurrences} />
       </section>
 
       {/* Seção 1 — Waze • Tráfego ao Vivo (API Waze for Cities) */}
@@ -188,7 +210,7 @@ export default function App() {
           title="Câmeras ao Vivo"
           subtitle="Monitoramento em tempo real da rede de câmeras Tixxi"
         />
-        <CamerasSection />
+        <CamerasSection {...cameras} />
       </section>
 
       {/* Seção 4 — Saúde e Operação dos Semáforos (API Dataprom/Antares) */}
@@ -266,6 +288,8 @@ export default function App() {
         </div>
       </section>
 
+        </>
+      )}
       <Footer />
     </div>
   )
