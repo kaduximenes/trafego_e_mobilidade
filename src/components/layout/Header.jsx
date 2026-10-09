@@ -41,7 +41,7 @@ export function Header({ summaryOpen = false, onToggleSummary }) {
             className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition-colors hover:border-white/50 hover:bg-white/15 lg:self-auto"
           >
             {summaryOpen ? <ArrowLeft size={15} /> : <LayoutDashboard size={15} />}
-            {summaryOpen ? 'Voltar ao painel' : 'Resumo dos indicadores'}
+            {summaryOpen ? 'Voltar ao mapa' : 'Análise ampla dos indicadores'}
           </button>
         )}
       </div>

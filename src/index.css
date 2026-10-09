@@ -1,3 +1,4 @@
+@import 'leaflet/dist/leaflet.css';
 @import 'tailwindcss';
 
 @theme {
@@ -53,8 +54,6 @@ body {
   overflow-x: hidden;
 }
 
-/* #root is the viewport shell: it fills the screen and owns vertical scrolling,
-   so dashboard sections keep their natural height instead of being squeezed. */
 #root {
   display: flex;
   flex-direction: column;
@@ -78,7 +77,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Thin scrollbars for monitoring panels */
+.leaflet-container {
+  z-index: 0;
+  font-family: var(--font-sans);
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -109,7 +112,6 @@ body {
   }
 }
 
-/* Recharts dark theme overrides */
 .recharts-cartesian-grid line {
   stroke: rgba(19, 51, 90, 0.12);
 }
@@ -125,4 +127,3 @@ body {
 .recharts-tooltip-cursor {
   fill: rgba(66, 185, 235, 0.1);
 }
-

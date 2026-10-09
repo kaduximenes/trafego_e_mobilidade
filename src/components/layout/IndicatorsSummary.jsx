@@ -60,7 +60,7 @@ export function IndicatorsSummary({ occurrences, waze, cameras, semaforos }) {
     <section aria-labelledby="indicators-summary-title">
       <div className="mb-3">
         <h2 id="indicators-summary-title" className="text-base font-bold text-text-main">
-          Resumo dos indicadores
+          Análise ampla dos indicadores
         </h2>
         <p className="mt-1 text-xs text-text-muted">
           Visão consolidada dos principais números do painel. Os dados mantêm a atualização de cada fonte.
