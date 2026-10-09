@@ -44,12 +44,12 @@ export default function App() {
   const [summaryOpen, setSummaryOpen] = useState(false)
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-3 px-4 py-4 md:px-5">
+    <div className="flex min-h-full w-full shrink-0 flex-col gap-3 overflow-x-hidden">
       <Header
         summaryOpen={summaryOpen}
         onToggleSummary={() => {
           setSummaryOpen((open) => !open)
-          window.scrollTo({ top: 0, behavior: 'smooth' })
+          document.getElementById('root')?.scrollTo({ top: 0, behavior: 'smooth' })
         }}
       />
 
