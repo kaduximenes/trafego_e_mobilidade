@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Activity, AlertTriangle, BarChart3, Camera, ChartColumn, ChevronDown, Gauge, Layers, Map as MapIcon, Navigation, PieChart, Radar, RefreshCw, Route, Siren, TrafficCone, Trophy } from 'lucide-react'
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import { useSemaforos } from './hooks/useSemaforos'
 import { useWazeTraffic } from './hooks/useWazeTraffic'
 import { useOpenEvents } from './hooks/useOpenEvents'
@@ -55,14 +55,16 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
   const mapEvents = feed.filter((event) => event.coordinates)
   const [expandedEventId, setExpandedEventId] = useState(null)
   const [selectedEventId, setSelectedEventId] = useState(null)
-  const [activeTab, setActiveTab] = useState('traffic')
+  const [activeTab, setActiveTab] = useState('occurrences')
   const [mapLayer, setMapLayer] = useState('street')
+  const [showWazeCongestion, setShowWazeCongestion] = useState(true)
   const [visibleSeverities, setVisibleSeverities] = useState(['high', 'medium', 'low'])
   const [filtersOpen, setFiltersOpen] = useState(true)
   const incidentCount = feed.length
   const criticalCount = occurrences.severityCounts?.high?.count || 0
   const selectedEvent = mapEvents.find((event) => event.id === selectedEventId) || null
   const visibleEvents = mapEvents.filter((event) => visibleSeverities.includes(event.severity))
+  const congestedJams = (waze.jams || []).filter((jam) => jam.level >= 3 && jam.coordinates?.length >= 2)
   const sortedFeed = [...feed].sort((a, b) => {
     const rank = { high: 0, medium: 1, low: 2 }
     return (rank[a.severity] ?? 1) - (rank[b.severity] ?? 1) || b.timestamp - a.timestamp
@@ -120,8 +122,18 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
                   ))}
                 </div>
               </div>
+              <div>
+                <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Route size={13} /> Trânsito do Waze</div>
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/30 px-3 py-2 text-xs text-slate-700 hover:bg-white/55">
+                  <input type="checkbox" checked={showWazeCongestion} onChange={(event) => setShowWazeCongestion(event.target.checked)} className="accent-rose-500" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-rose-600" />
+                  Engarrafamentos intensos
+                  <span className="ml-auto text-[10px] text-slate-500">{formatNumber(congestedJams.length)}</span>
+                </label>
+                <p className="mt-1 px-1 text-[10px] leading-relaxed text-slate-500">Trechos com nível de congestionamento 3 a 5.</p>
+              </div>
               <p className="rounded-lg bg-white/30 p-2 text-[10px] leading-relaxed text-slate-600">
-                Mostrando {visibleEvents.length} de {mapEvents.length} ocorrências da Hexagon com coordenadas. Alertas Waze não são exibidos como pontos.
+                Mostrando {visibleEvents.length} de {mapEvents.length} ocorrências Hexagon. O trânsito do Waze é exibido como linhas separadas.
               </p>
             </div>
           )}
@@ -149,6 +161,30 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
               url={tileLayer.url}
             />
             <MapFocus occurrence={selectedEvent} />
+            {showWazeCongestion && congestedJams.map((jam) => (
+              <Polyline
+                key={`waze-jam-${jam.id}`}
+                positions={jam.coordinates}
+                pathOptions={{
+                  color: jam.bucketColor,
+                  weight: jam.level >= 4 ? 6 : 4,
+                  opacity: 0.9,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              >
+                <Popup>
+                  <div className="min-w-44 space-y-1 text-xs">
+                    <strong className="block text-sm">{jam.street}</strong>
+                    <div>{jam.city || 'Rio de Janeiro'}</div>
+                    <div><strong>Trânsito:</strong> <span style={{ color: jam.bucketColor }}>{jam.bucketLabel}</span> (nível {jam.level}/5)</div>
+                    <div><strong>Extensão:</strong> {formatDecimal(jam.lengthKm)} km</div>
+                    <div><strong>Velocidade:</strong> {formatDecimal(jam.speedKmh)} km/h</div>
+                    <div><strong>Atraso:</strong> {Math.round(jam.delayS / 60)} min</div>
+                  </div>
+                </Popup>
+              </Polyline>
+            ))}
             {visibleEvents.map((event) => (
               <CircleMarker
                 key={`hexagon-${event.id}`}

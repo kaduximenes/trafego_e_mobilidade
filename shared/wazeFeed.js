@@ -35,16 +35,34 @@ function toText(raw) {
   return typeof raw === 'string' ? raw : raw == null ? '' : String(raw)
 }
 
+function trimJamLine(raw, level) {
+  if (level < 3 || !Array.isArray(raw)) return []
+
+  const points = raw
+    .map((point) => ({ lat: toNumber(point?.y), lon: toNumber(point?.x) }))
+    .filter((point) => point.lat !== null && point.lon !== null
+      && point.lat >= -90 && point.lat <= 90
+      && point.lon >= -180 && point.lon <= 180)
+
+  const maxPoints = 100
+  if (points.length <= maxPoints) return points
+
+  const stride = (points.length - 1) / (maxPoints - 1)
+  return Array.from({ length: maxPoints }, (_, index) => points[Math.round(index * stride)])
+}
+
 function trimJam(raw = {}) {
+  const level = toNumber(raw.level) ?? 0
   return {
     uuid: toText(raw.uuid ?? raw.id),
     street: toText(raw.street),
     city: toText(raw.city),
-    level: toNumber(raw.level) ?? 0,
+    level,
     speedKMH: toNumber(raw.speedKMH ?? raw.speed),
     length: toNumber(raw.length) ?? 0,
     delay: toNumber(raw.delay) ?? 0,
     pubMillis: toNumber(raw.pubMillis),
+    line: trimJamLine(raw.line, level),
   }
 }
 

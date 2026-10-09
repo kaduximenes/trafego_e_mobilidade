@@ -109,6 +109,11 @@ export function normalizeJam(raw = {}) {
     speedKmh: toNumber(raw.speedKMH ?? raw.speed) ?? 0,
     delayS: toNumber(raw.delay) ?? 0,
     updatedAt: toNumber(raw.updateMillis ?? raw.pubMillis) ?? Date.now(),
+    coordinates: Array.isArray(raw.line)
+      ? raw.line
+          .map((point) => [toNumber(point?.lat), toNumber(point?.lon)])
+          .filter(([lat, lon]) => lat !== null && lon !== null)
+      : [],
   }
 }
 
