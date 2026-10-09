@@ -157,6 +157,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
             className="h-full min-h-[650px] w-full"
           >
             <TileLayer
+              key={mapLayer}
               attribution={tileLayer.attribution}
               url={tileLayer.url}
             />
