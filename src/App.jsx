@@ -156,6 +156,8 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
                 radius={event.severity === 'high' ? 9 : 7}
                 pathOptions={{ color: '#ffffff', weight: 2, fillColor: event.severityColor || '#f59e0b', fillOpacity: 0.95 }}
                 eventHandlers={{
+                  mouseover: (markerEvent) => markerEvent.target.openPopup(),
+                  mouseout: (markerEvent) => markerEvent.target.closePopup(),
                   click: () => {
                     setSelectedEventId(event.id)
                     setExpandedEventId(event.id)
@@ -164,10 +166,21 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
                 }}
               >
                 <Popup>
-                  <div className="min-w-40">
-                    <strong>{event.type}</strong>
-                    <div>{event.location}</div>
-                    <small>Prioridade {event.severityLabel}</small>
+                  <div className="min-w-52 space-y-1.5 text-xs">
+                    <strong className="block text-sm">{event.type}</strong>
+                    <div><span className="font-semibold">Local:</span> {event.location}</div>
+                    <div>
+                      <span className="font-semibold">Classificação:</span>{' '}
+                      <span style={{ color: event.severityColor || '#f59e0b' }}>{event.severityLabel}</span>
+                    </div>
+                    <div><span className="font-semibold">Situação:</span> {event.status || 'Ativa'}</div>
+                    <div><span className="font-semibold">Código:</span> {event.code || event.id}</div>
+                    {event.timestamp && (
+                      <div>
+                        <span className="font-semibold">Registro:</span>{' '}
+                        {new Date(event.timestamp).toLocaleString('pt-BR')}
+                      </div>
+                    )}
                   </div>
                 </Popup>
               </CircleMarker>
