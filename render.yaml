@@ -1,5 +1,10 @@
 # Blueprint do Render — https://render.com/docs/blueprint-spec
 #
+# ATENÇÃO: mantenha EXATAMENTE UM blueprint conectado a este repositório. Se
+# houver dois lendo o mesmo render.yaml (que declara `name: trafego-iacor`), o
+# segundo cria um serviço duplicado com sufixo a cada push, porque o nome já
+# está tomado pelo primeiro. Isso já aconteceu uma vez e foi removido.
+#
 # Por que um servidor Node e não hospedagem estática:
 # as APIs do COR e do Antares não enviam cabeçalhos CORS, então o navegador só
 # consegue consumi-las via proxy same-origin (server/index.js). Além disso, as
