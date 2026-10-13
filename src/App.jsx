@@ -19,6 +19,7 @@ import { WazeLiveMap } from './components/waze/WazeLiveMap'
 import { CongestionKpi } from './components/waze/CongestionKpi'
 import { WazeTopJams } from './components/waze/WazeTopJams'
 import { WazeAlertsPanel } from './components/waze/WazeAlertsPanel'
+import { severityKeyOf } from './services/apiEvents'
 import { CAMERA_STATUS } from './services/tixxi'
 import { BASEMAPS, getBasemap } from './constants/basemaps'
 import { useNow } from './hooks/useNow'
@@ -26,6 +27,11 @@ import { SourceFreshness } from './components/status/SourceFreshness'
 import { formatDecimal, formatNumber } from './utils/format'
 
 const FAILURE_FEED_LIMIT = 12
+const SEVERITY_FILTERS = [
+  { key: 'low', label: 'Baixa', color: '#3B82F6' },
+  { key: 'medium', label: 'Média', color: '#F59E0B' },
+  { key: 'high', label: 'Alta', color: '#EF4444' },
+]
 
 function formatSince(timestamp) {
   if (!timestamp) return 'sem registro'
@@ -79,6 +85,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   const [showWazeCongestion, setShowWazeCongestion] = useState(true)
   const [visibleSeverities, setVisibleSeverities] = useState(['high', 'medium', 'low'])
   const [filtersOpen, setFiltersOpen] = useState(true)
+  const [severityFilter, setSeverityFilter] = useState(null)
   const incidentCount = feed.length
   const criticalCount = occurrences.severityCounts?.high?.count || 0
   const selectedEvent = mapEvents.find((event) => event.id === selectedEventId) || null
@@ -89,6 +96,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
     return (rank[a.severity] ?? 1) - (rank[b.severity] ?? 1) || b.timestamp - a.timestamp
   })
   const sortedJams = [...(waze.topJams || [])].sort((a, b) => b.lengthKm - a.lengthKm).slice(0, 8)
+  const filteredFeed = severityFilter ? sortedFeed.filter((event) => severityKeyOf(event) === severityFilter) : sortedFeed
   const cameraTotal = cameras?.counts?.total || 0
   const camerasOnline = cameras?.counts?.['0'] || 0
   const camerasDown = Math.max(0, cameraTotal - camerasOnline)
@@ -309,23 +317,39 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
                   <span className="shrink-0 rounded-full bg-slate-800/10 px-2.5 py-1 text-xs font-bold text-slate-700">Total: {incidentCount}</span>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">{mapEvents.length} com coordenadas · {criticalCount} prioridade alta</p>
-                <div className="mt-3 grid grid-cols-3 gap-1.5" aria-label="Ocorrências por classificação">
-                  {[
-                    { key: 'low', label: 'Baixa', color: '#3B82F6' },
-                    { key: 'medium', label: 'Média', color: '#F59E0B' },
-                    { key: 'high', label: 'Alta', color: '#EF4444' },
-                  ].map(({ key, label, color }) => (
-                    <div key={key} className="flex min-w-0 items-center gap-1.5 rounded-lg border border-white/50 bg-white/35 px-2 py-1.5">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                      <span className="truncate text-[10px] font-medium text-slate-600">{label}</span>
-                      <strong className="ml-auto text-xs text-slate-800">{occurrences.severityCounts?.[key]?.count || 0}</strong>
-                    </div>
-                  ))}
+                <div className="mt-3 grid grid-cols-3 gap-1.5" role="group" aria-label="Filtrar ocorrências por prioridade">
+                  {SEVERITY_FILTERS.map(({ key, label, color }) => {
+                    const active = severityFilter === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setSeverityFilter(active ? null : key)}
+                        title={active ? `Remover o filtro de prioridade ${label}` : `Mostrar somente prioridade ${label}`}
+                        className={`flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition-colors ${active ? 'border-transparent shadow-sm' : 'border-white/50 bg-white/35 hover:bg-white/60'}`}
+                        style={active ? { backgroundColor: color } : undefined}
+                      >
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: active ? '#ffffff' : color }} />
+                        <span className={`truncate text-[10px] font-medium ${active ? 'text-white' : 'text-slate-600'}`}>{label}</span>
+                        <strong className={`ml-auto text-xs ${active ? 'text-white' : 'text-slate-800'}`}>{occurrences.severityCounts?.[key]?.count || 0}</strong>
+                      </button>
+                    )
+                  })}
                 </div>
+                {severityFilter && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-slate-800/5 px-2.5 py-1.5 text-[10px] text-slate-600">
+                    <span className="min-w-0 truncate">
+                      Filtrando por <strong className="font-semibold">{SEVERITY_FILTERS.find((item) => item.key === severityFilter)?.label}</strong>
+                      {' · '}{filteredFeed.length} de {sortedFeed.length}
+                    </span>
+                    <button type="button" onClick={() => setSeverityFilter(null)} className="shrink-0 font-semibold underline">Limpar</button>
+                  </div>
+                )}
               </div>
               {occurrences.error && <div className="m-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{occurrences.error}</div>}
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                {sortedFeed.length ? sortedFeed.map((event) => {
+                {filteredFeed.length ? filteredFeed.map((event) => {
                   const expanded = expandedEventId === event.id
                   return (
                     <div key={event.id} className={`mb-1.5 overflow-hidden border-b border-slate-300/60 ${selectedEventId === event.id ? 'bg-blue-100/45' : 'bg-white/15'}`}>
@@ -351,7 +375,15 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
                       )}
                     </div>
                   )
-                }) : <p className="px-3 py-8 text-center text-xs text-slate-500">{occurrences.loading ? 'Carregando ocorrências…' : 'Nenhuma ocorrência ativa.'}</p>}
+                }) : (
+                  <p className="px-3 py-8 text-center text-xs text-slate-500">
+                    {occurrences.loading
+                      ? 'Carregando ocorrências…'
+                      : severityFilter
+                        ? `Nenhuma ocorrência com prioridade ${SEVERITY_FILTERS.find((item) => item.key === severityFilter)?.label.toLowerCase()}.`
+                        : 'Nenhuma ocorrência ativa.'}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -547,7 +579,6 @@ export default function App() {
           <SectionTitle
             icon={MapIcon}
             title="Mapa operacional"
-            subtitle="Ocorrências geolocalizadas da API Hexagon no mapa e dados de congestionamento do Waze na lateral"
           />
           <MonitoringPrototype occurrences={occurrences} waze={waze} semaforos={semaforos} cameras={cameras} />
         </section>

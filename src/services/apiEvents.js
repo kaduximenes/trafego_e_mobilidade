@@ -18,6 +18,13 @@ const severityPalette = {
   low: { key: 'low', label: 'Baixa', color: '#3B82F6' },
 }
 
+// Regra única de severidade: a API pode enviar valores fora do trio conhecido,
+// que passam a contar como 'medium'. Exportada para que filtros da UI usem
+// exatamente a mesma classificação dos contadores.
+export function severityKeyOf(event) {
+  return severityPalette[event?.severity] ? event.severity : 'medium'
+}
+
 function getTokenFromStorage() {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY)
   const expiresAt = Number(localStorage.getItem(TOKEN_EXPIRY_KEY) || 0)
@@ -279,7 +286,7 @@ export function aggregateEvents(events = []) {
   const typeMap = new Map()
 
   for (const event of normalized) {
-    const severityKey = severityPalette[event.severity] ? event.severity : 'medium'
+    const severityKey = severityKeyOf(event)
     severityCounts[severityKey].count += 1
 
     const key = event.typeKey || 'ocorrencia_geral'
