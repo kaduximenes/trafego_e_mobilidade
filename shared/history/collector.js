@@ -464,15 +464,21 @@ export function entityStatesOf(source, data) {
   return []
 }
 
-// Normaliza uma ocorrência para o registro persistido, reaproveitando o formato
-// do frame (coordenadas como par).
+// Normaliza uma ocorrência para o registro persistido.
+//
+// Atenção: NÃO reaproveita occurrencesFrame. Aquele recorte existe para limitar o
+// que o mapa desenha (FRAME_OCCURRENCE_LIMIT) e, se fosse usado aqui, o ciclo de
+// vida ignoraria silenciosamente as ocorrências além do limite.
 export function occurrenceRecords(events) {
-  return occurrencesFrame(events).map((event) => ({
-    id: event.id,
-    severity: event.severity,
-    typeKey: event.typeKey,
-    type: event.type,
-    location: event.location,
-    coordinates: event.coordinates,
-  }))
+  return events.map((event) => {
+    const coordinates = event.coordinates
+    return {
+      id: event.id,
+      severity: event.severity,
+      typeKey: event.typeKey,
+      type: event.type,
+      location: event.location,
+      coordinates: coordinates ? [roundCoord(coordinates.latitude), roundCoord(coordinates.longitude)] : null,
+    }
+  })
 }

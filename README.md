@@ -115,6 +115,22 @@ npm run lint    # oxlint
 npm run build   # build de produção
 ```
 
+O driver Postgres é exercitado com SQL de verdade: `shared/history/postgresStore.test.js`
+roda os mesmos comandos usados em produção contra um Postgres em memória
+(`pg-mem`, dependência de desenvolvimento). Isso pega nomes de coluna, casts e
+sintaxe inválidos, que de outra forma só apareceriam no primeiro deploy com
+`DATABASE_URL` definido.
+
+Duas ressalvas conhecidas do emulador, ambas contornadas nos testes:
+
+- ele não mantém um índice parcial após `UPDATE`, então o índice
+  `occurrence_open_idx` é removido dentro do teste que filtra ocorrências
+  encerradas (no Postgres real o índice é correto e serve justamente o filtro de
+  ocorrências abertas);
+- ele rejeita `CREATE TABLE IF NOT EXISTS` na segunda execução, então a
+  idempotência de `ensureSchema` é garantida pela semântica padrão do Postgres,
+  não por teste.
+
 ## Produção
 
 O deploy é descrito em `render.yaml`. Três pontos exigem atenção:

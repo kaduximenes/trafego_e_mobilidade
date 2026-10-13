@@ -59,6 +59,10 @@ export const METRIC_SOURCES = ['ocorrencias', 'waze', 'semaforos', 'cameras']
 // um estado antigo como se fosse daquele momento.
 const FRAME_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
 
+// Bloco de ids por comando no fechamento de ocorrências: mantém o número de
+// parâmetros bem abaixo do limite do Postgres (65535).
+const ID_CHUNK_SIZE = 1000
+
 export function getHistoryConfig(env = {}) {
   return {
     driver: env.DATABASE_URL ? 'postgres' : 'file',
@@ -67,11 +71,14 @@ export function getHistoryConfig(env = {}) {
   }
 }
 
-export async function createMetricStore(env = {}) {
+// `createPool` permite injetar um pool alternativo (usado nos testes para
+// executar o SQL de verdade contra um Postgres em memória). Em produção fica
+// nulo e o driver `pg` é carregado sob demanda.
+export async function createMetricStore(env = {}, { createPool = null } = {}) {
   const config = getHistoryConfig(env)
   const store =
     config.driver === 'postgres'
-      ? createPostgresStore(config.databaseUrl)
+      ? createPostgresStore(config.databaseUrl, { createPool })
       : createFileStore(config.historyDir)
 
   await store.ensureSchema()
@@ -139,11 +146,17 @@ export function diffEntities({ current = [], previous = [], idOf, stateOf }) {
 
 // ---------------------------------------------------------------- Postgres --
 
-export function createPostgresStore(connectionString) {
+export function createPostgresStore(connectionString, { createPool = null } = {}) {
   let pool = null
 
   const getPool = async () => {
     if (!pool) {
+      if (createPool) {
+        // Pool injetado (testes): permite executar o SQL real contra um
+        // Postgres em memória, sem depender de um banco externo.
+        pool = await createPool(connectionString)
+        return pool
+      }
       // Import dinâmico: o driver só é carregado quando há DATABASE_URL, para
       // que o desenvolvimento local rode sem banco e sem a dependência ativa.
       const { default: pg } = await import('pg')
@@ -277,13 +290,31 @@ export function createPostgresStore(connectionString) {
 
       // Ausentes agora: fecharam entre as duas leituras. O endpoint do COR só
       // devolve ocorrências abertas, então "sumiu" significa "encerrada".
+      //
+      // Usamos IN com placeholders em blocos em vez de `= ANY($2::text[])`. Em
+      // Postgres os dois são equivalentes; aqui a escolha é por verificabilidade:
+      // o emulador usado nos testes não aplica `ANY` com array por parâmetro e
+      // devolveria rowCount 0 sem erro — ou seja, um `= ANY` quebrado passaria
+      // despercebido. O bloco existe só para não estourar o limite de 65535
+      // parâmetros do Postgres.
       if (closed.length) {
-        await p.query(
-          `UPDATE ${OCCURRENCE_TABLE}
-              SET closed_at = COALESCE(closed_at, $1)
-            WHERE event_id = ANY($2::text[])`,
-          [collectedAt, closed.map((event) => event.id)],
-        )
+        const ids = closed.map((event) => event.id)
+
+        for (let start = 0; start < ids.length; start += ID_CHUNK_SIZE) {
+          const chunk = ids.slice(start, start + ID_CHUNK_SIZE)
+          const placeholders = chunk.map((_, index) => `$${index + 2}`).join(', ')
+
+          // `closed_at IS NULL` no WHERE (em vez de COALESCE no SET) preserva a
+          // semântica de "não sobrescrever um fechamento já registrado" e deixa o
+          // número de linhas afetadas significar exatamente "fechadas agora".
+          await p.query(
+            `UPDATE ${OCCURRENCE_TABLE}
+                SET closed_at = $1
+              WHERE closed_at IS NULL
+                AND event_id IN (${placeholders})`,
+            [collectedAt, ...chunk],
+          )
+        }
       }
 
       return { opened: seen.length, closed: closed.length }
@@ -385,12 +416,14 @@ export function createPostgresStore(connectionString) {
         lastSeen: row.last_seen.toISOString(),
         closedAt: row.closed_at ? row.closed_at.toISOString() : null,
         durationMs: (row.closed_at || new Date(row.last_seen)).getTime() - row.first_seen.getTime(),
-        severity: row.severity,
-        typeKey: row.type_key,
-        typeLabel: row.type_label,
-        location: row.location,
-        latitude: row.latitude,
-        longitude: row.longitude,
+        severity: row.severity ?? null,
+        typeKey: row.type_key ?? null,
+        typeLabel: row.type_label ?? null,
+        location: row.location ?? null,
+        // Normalizado para null: o contrato não deve depender de como o driver
+        // representa NULL (o emulador dos testes devolve undefined em alguns casos).
+        latitude: row.latitude ?? null,
+        longitude: row.longitude ?? null,
       }))
     },
 
@@ -458,14 +491,19 @@ export function createPostgresStore(connectionString) {
         [target, lookback],
       )
 
+      // Devolve null (e não undefined) quando não há linha: o driver de arquivo
+      // já devolve null e o contrato precisa ser o mesmo nos dois, senão a UI e
+      // as rotas precisariam tratar as duas formas.
       const toFrame = (row) =>
-        row && {
-          collectedAt: row.collected_at.toISOString(),
-          payload: row.payload,
-          payloadBytes: row.payload_bytes,
-          sourcesOk: row.sources_ok,
-          sourcesFailed: row.sources_failed,
-        }
+        row
+          ? {
+              collectedAt: row.collected_at.toISOString(),
+              payload: row.payload,
+              payloadBytes: row.payload_bytes,
+              sourcesOk: row.sources_ok,
+              sourcesFailed: row.sources_failed,
+            }
+          : null
 
       const snapshot = toFrame(rows.find((row) => row.collected_at <= target))
       const next = toFrame(rows.find((row) => row.collected_at > target))
