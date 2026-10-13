@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getSnapshot, listFrames } from '../services/history'
+import { DEFAULT_TIMELINE_WINDOW_HOURS, TIMELINE_WINDOWS } from '../constants/timelineWindows'
 import { TimeCursorContext } from './timeCursorContext'
 
 // Cursor temporal do painel.
@@ -15,13 +16,22 @@ const PLAYBACK_SPEEDS = [
   { label: '12×', ms: 5000 },
 ]
 
-const DEFAULT_WINDOW_HOURS = 12
+// A lista de frames é recarregada periodicamente para que a linha do tempo
+// incorpore as coletas novas sem exigir recarregar a página. A cadência da
+// coleta é de 15 min, então 5 min mantém a janela atualizada sem custo relevante.
+const DEFAULT_FRAME_REFRESH_MS = 5 * 60 * 1000
 
-export function TimeCursorProvider({ children, windowHours = DEFAULT_WINDOW_HOURS }) {
+export function TimeCursorProvider({
+  children,
+  windowHours: initialWindowHours = DEFAULT_TIMELINE_WINDOW_HOURS,
+  frameRefreshMs = DEFAULT_FRAME_REFRESH_MS,
+}) {
   const [cursor, setCursor] = useState(null)
-  // `loaded: false` representa "ainda carregando" — assim o estado de carregamento
-  // é derivado em vez de sincronizado por setState.
-  const [framesState, setFramesState] = useState({ loaded: false, list: [] })
+  const [windowHours, setWindowHours] = useState(initialWindowHours)
+  // `loadedForHours: null` representa "ainda carregando". Guardar para qual
+  // janela os frames foram carregados permite derivar o estado de carregamento
+  // (e dar feedback ao trocar a janela) sem setState em efeito.
+  const [framesState, setFramesState] = useState({ loadedForHours: null, list: [] })
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [playingRequested, setPlayingRequested] = useState(false)
@@ -34,16 +44,19 @@ export function TimeCursorProvider({ children, windowHours = DEFAULT_WINDOW_HOUR
 
   const loadFrames = useCallback(
     async (signal) => {
+      const requestedHours = windowHours
       try {
         const to = new Date()
-        const from = new Date(to.getTime() - windowHours * 60 * 60 * 1000)
+        const from = new Date(to.getTime() - requestedHours * 60 * 60 * 1000)
         const list = await listFrames({ from: from.toISOString(), to: to.toISOString(), signal })
         if (signal?.aborted) return
-        setFramesState({ loaded: true, list })
+        setFramesState({ loadedForHours: requestedHours, list })
         setError(null)
       } catch (err) {
         if (signal?.aborted) return
-        setFramesState({ loaded: true, list: [] })
+        // Marca a janela como carregada mesmo em erro: sem isso a interface
+        // ficaria presa em "carregando" e nunca mostraria a falha.
+        setFramesState({ loadedForHours: requestedHours, list: [] })
         setError(err?.message || 'Falha ao carregar os instantes do histórico.')
       }
     },
@@ -56,8 +69,18 @@ export function TimeCursorProvider({ children, windowHours = DEFAULT_WINDOW_HOUR
     // com um sistema externo (a API de histórico). Não há valor derivável aqui.
     // oxlint-disable-next-line react/set-state-in-effect
     void loadFrames(controller.signal)
-    return () => controller.abort()
-  }, [loadFrames])
+
+    // Atualização silenciosa: não mexe em `refreshing`, para não piscar o
+    // estado de carregamento a cada ciclo.
+    const id = setInterval(() => {
+      void loadFrames(controller.signal)
+    }, frameRefreshMs)
+
+    return () => {
+      controller.abort()
+      clearInterval(id)
+    }
+  }, [loadFrames, frameRefreshMs])
 
   const refreshFrames = useCallback(async () => {
     setRefreshing(true)
@@ -99,7 +122,7 @@ export function TimeCursorProvider({ children, windowHours = DEFAULT_WINDOW_HOUR
 
   const isHistory = cursor !== null
   const frames = framesState.list
-  const loadingFrames = !framesState.loaded || refreshing
+  const loadingFrames = framesState.loadedForHours !== windowHours || refreshing
   const snapshotApplied = isHistory && snapshotState.forCursor === cursor
   const snapshot = snapshotApplied ? snapshotState.data : null
   const loadingSnapshot = isHistory && !snapshotApplied
@@ -176,6 +199,9 @@ export function TimeCursorProvider({ children, windowHours = DEFAULT_WINDOW_HOUR
       error: error || (snapshotApplied ? snapshotState.error : null),
       playing,
       speedLabel: (PLAYBACK_SPEEDS[speedIndex] || PLAYBACK_SPEEDS[0]).label,
+      windowOptions: TIMELINE_WINDOWS,
+      windowHours,
+      setWindowHours,
       refreshFrames,
       setCursor,
       enterHistory,
@@ -198,6 +224,7 @@ export function TimeCursorProvider({ children, windowHours = DEFAULT_WINDOW_HOUR
       error,
       playing,
       speedIndex,
+      windowHours,
       refreshFrames,
       enterHistory,
       goLive,

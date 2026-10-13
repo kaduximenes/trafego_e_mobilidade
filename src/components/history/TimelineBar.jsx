@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight, Clock, Gauge, History, Pause, Play, Radio } from 'lucide-react'
 import { useTimeCursor } from '../../contexts/timeCursorContext'
 import { instantAtPosition, positionOf } from '../../utils/timeline'
-
 function formatInstant(instant) {
   if (!instant) return '—'
   return new Date(instant).toLocaleString('pt-BR', {
@@ -30,6 +29,9 @@ export function TimelineBar() {
     error,
     playing,
     speedLabel,
+    windowOptions,
+    windowHours,
+    setWindowHours,
     enterHistory,
     goLive,
     setCursor,
@@ -108,6 +110,20 @@ export function TimelineBar() {
             <Gauge size={12} />
             {speedLabel}
           </button>
+          <select
+            value={windowHours}
+            onChange={(event) => setWindowHours(Number(event.target.value))}
+            disabled={loadingFrames}
+            aria-label="Janela da linha do tempo"
+            title="Período coberto pela linha do tempo"
+            className="rounded-lg border border-slate-300/70 bg-white/50 px-1.5 py-1.5 text-[10px] font-semibold text-slate-600 hover:bg-white/80 disabled:opacity-40"
+          >
+            {windowOptions.map((option) => (
+              <option key={option.hours} value={option.hours}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="relative min-w-0 flex-1">

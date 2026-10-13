@@ -32,9 +32,13 @@ O histórico é construído capturando o estado a cada coleta.
 | `GET /api/state-changes?entity=` | Transições de estado de semáforos e câmeras |
 
 A **linha do tempo** na base do mapa permite voltar no tempo, avançar quadro a
-quadro, reproduzir em 1×/4×/12× e retornar ao vivo. Em modo histórico, o mapa e o
-painel desenham o frame daquele momento pelo mesmo pipeline de renderização, com
-um aviso fixo de **MODO HISTÓRICO** para o operador não confundir passado com agora.
+quadro, reproduzir em 1×/4×/12×, escolher o período coberto (6 h a 7 dias) e
+retornar ao vivo. Em modo histórico, o mapa e o painel desenham o frame daquele
+momento pelo mesmo pipeline de renderização, com um aviso fixo de **MODO
+HISTÓRICO** para o operador não confundir passado com agora.
+
+A lista de frames é recarregada a cada 5 minutos, para que a linha do tempo
+incorpore as coletas novas sem exigir recarregar a página.
 
 ### O que é gravado
 
