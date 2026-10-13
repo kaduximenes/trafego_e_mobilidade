@@ -19,7 +19,23 @@ import { WazeLiveMap } from './components/waze/WazeLiveMap'
 import { CongestionKpi } from './components/waze/CongestionKpi'
 import { WazeTopJams } from './components/waze/WazeTopJams'
 import { WazeAlertsPanel } from './components/waze/WazeAlertsPanel'
+import { CAMERA_STATUS } from './services/tixxi'
 import { formatDecimal, formatNumber } from './utils/format'
+
+const FAILURE_FEED_LIMIT = 12
+
+function formatSince(timestamp) {
+  if (!timestamp) return 'sem registro'
+  const diffMs = Date.now() - timestamp
+  if (diffMs < 0) return 'agora'
+  const minutes = Math.floor(diffMs / 60000)
+  if (minutes < 60) return `há ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `há ${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `há ${days}d`
+  return `há ${Math.floor(days / 30)}m`
+}
 
 function Footer() {
   return (
@@ -50,7 +66,7 @@ function MapFocus({ occurrence }) {
   return null
 }
 
-function MonitoringPrototype({ occurrences, waze, semaforos }) {
+function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   const feed = occurrences.feed || []
   const mapEvents = feed.filter((event) => event.coordinates)
   const [expandedEventId, setExpandedEventId] = useState(null)
@@ -70,6 +86,18 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
     return (rank[a.severity] ?? 1) - (rank[b.severity] ?? 1) || b.timestamp - a.timestamp
   })
   const sortedJams = [...(waze.topJams || [])].sort((a, b) => b.lengthKm - a.lengthKm).slice(0, 8)
+  const cameraTotal = cameras?.counts?.total || 0
+  const camerasOnline = cameras?.counts?.['0'] || 0
+  const camerasDown = Math.max(0, cameraTotal - camerasOnline)
+  const cameraAvailability = cameraTotal ? (camerasOnline / cameraTotal) * 100 : 0
+  const cameraStatuses = Object.entries(CAMERA_STATUS).map(([raw, status]) => ({
+    ...status,
+    count: cameras?.counts?.[raw] || 0,
+  }))
+  const topFailures = (semaforos.topFailures || []).slice(0, 5)
+  const topFailureMax = Math.max(...topFailures.map((fault) => fault.value), 1)
+  const failures = (semaforos.failures || []).slice(0, FAILURE_FEED_LIMIT)
+  const activeTabSource = { occurrences, traffic: waze, signals: semaforos, cameras }[activeTab] || occurrences
   const tileLayer = mapLayer === 'dark'
     ? {
         url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -245,24 +273,25 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
 
         <aside className="absolute right-7 top-7 z-[1000] flex h-[calc(75vh-2rem)] min-h-[610px] max-h-[740px] w-[340px] flex-col overflow-hidden rounded-[22px] border border-white/70 bg-white/55 shadow-[0_20px_48px_rgba(15,23,42,0.14)] backdrop-blur-[3px] max-sm:right-5 max-sm:w-[calc(50%-1.5rem)] max-sm:min-h-[500px] max-sm:h-[calc(70vh-1rem)]">
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
-            <div className="flex min-w-0 rounded-xl bg-white/30 p-1" role="tablist" aria-label="Painel lateral do mapa">
+            <div className="flex min-w-0 overflow-x-auto rounded-xl bg-white/30 p-1" role="tablist" aria-label="Painel lateral do mapa">
               {[
                 ['occurrences', 'Ocorrências'],
                 ['traffic', 'Trânsito'],
                 ['signals', 'Semáforos'],
+                ['cameras', 'Câmeras'],
               ].map(([tab, label]) => (
-                <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`rounded-lg px-2 py-1.5 text-[10px] font-semibold ${activeTab === tab ? 'bg-blue-600/90 text-white shadow-sm' : 'text-slate-600 hover:bg-white/55'}`}>
+                <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`shrink-0 rounded-lg px-2 py-1.5 text-[10px] font-semibold ${activeTab === tab ? 'bg-blue-600/90 text-white shadow-sm' : 'text-slate-600 hover:bg-white/55'}`}>
                   {label}
                 </button>
               ))}
             </div>
             <button
               type="button"
-              onClick={() => activeTab === 'occurrences' ? occurrences.refresh({ silent: false }) : activeTab === 'traffic' ? waze.refresh({ silent: false }) : semaforos.refresh({ silent: false })}
+              onClick={() => activeTabSource.refresh({ silent: false })}
               aria-label="Atualizar dados do painel"
               className="rounded-lg border border-slate-300/70 bg-white/35 p-2 text-slate-600 hover:bg-white/60"
             >
-              <RefreshCw size={14} className={(activeTab === 'occurrences' ? occurrences.loading : activeTab === 'traffic' ? waze.loading : semaforos.loading) ? 'animate-spin' : ''} />
+              <RefreshCw size={14} className={activeTabSource.loading ? 'animate-spin' : ''} />
             </button>
           </div>
 
@@ -333,9 +362,58 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
                 <div className="rounded-xl bg-rose-50/65 p-3"><div className="text-[10px] uppercase text-slate-500">Com falha</div><div className="mt-1 text-2xl font-black text-rose-700">{formatNumber(Math.max(0, (semaforos.total || 0) - (semaforos.online || 0)))}</div></div>
               </div>
               {semaforos.error && <div className="m-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{semaforos.error}</div>}
-              <div className="space-y-3 p-4 text-xs text-slate-600">
-                <div className="flex justify-between"><span>Total de controladores</span><strong className="text-slate-800">{formatNumber(semaforos.total || 0)}</strong></div>
-                <div className="flex justify-between"><span>Disponibilidade</span><strong className="text-slate-800">{formatDecimal(semaforos.operationalPct || 0)}%</strong></div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="space-y-3 p-4 text-xs text-slate-600">
+                  <div className="flex justify-between"><span>Total de controladores</span><strong className="text-slate-800">{formatNumber(semaforos.total || 0)}</strong></div>
+                  <div className="flex justify-between"><span>Disponibilidade</span><strong className="text-slate-800">{formatDecimal(semaforos.operationalPct || 0)}%</strong></div>
+                </div>
+
+                <div className="flex items-center gap-1.5 border-t border-slate-200 px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  <Gauge size={13} />
+                  Principais falhas detectadas
+                </div>
+                <div className="px-3 pb-3">
+                  {topFailures.length ? topFailures.map((fault) => (
+                    <div key={fault.key} className={`mb-1.5 rounded-lg border px-2.5 py-2 ${fault.severity === 'danger' ? 'border-rose-200/80 bg-rose-50/60' : 'border-amber-200/80 bg-amber-50/60'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-[11px] font-semibold text-slate-700">{fault.label}</span>
+                        <span className="shrink-0 font-mono text-[11px] tabular text-slate-500">
+                          <strong className={fault.severity === 'danger' ? 'text-rose-700' : 'text-amber-700'}>{formatNumber(fault.value)}</strong>
+                          {' • '}{fault.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70">
+                        <div className={`h-full rounded-full ${fault.severity === 'danger' ? 'bg-rose-500' : 'bg-amber-500'}`} style={{ width: `${Math.max((fault.value / topFailureMax) * 100, 3)}%` }} />
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="py-3 text-center text-[11px] text-slate-500">Nenhuma falha registrada no momento.</p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  <span className="flex items-center gap-1.5"><Siren size={13} /> Controladores com falha</span>
+                  <span className="font-mono">{formatNumber(semaforos.failures?.length || 0)}</span>
+                </div>
+                <div className="p-3 pt-1.5">
+                  {failures.length ? failures.map((controller) => (
+                    <div key={controller.id} className="mb-1.5 rounded-xl border border-slate-300/60 bg-white/25 p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-xs font-bold text-slate-800">Controlador {controller.id}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-slate-500">{formatSince(controller.lastCommunication)}</span>
+                      </div>
+                      <div className="mt-1 truncate text-[10px] text-slate-500">
+                        {controller.estado}
+                        {controller.flags?.length ? ` • ${controller.flags.slice(0, 2).map((flag) => flag.label).join(', ')}${controller.flags.length > 2 ? ` +${controller.flags.length - 2}` : ''}` : ''}
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="py-3 text-center text-[11px] text-slate-500">Todos os controladores estão operando normalmente.</p>
+                  )}
+                  {(semaforos.failures?.length || 0) > failures.length && (
+                    <p className="pt-1 text-center text-[10px] text-slate-500">Mostrando os {failures.length} mais críticos.</p>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -402,6 +480,38 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
           )}
           </>
           )}
+
+          {activeTab === 'cameras' && (
+            <>
+              <div className="border-b border-slate-200 px-4 py-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tixxi • COR</div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <h3 className="text-lg font-bold text-slate-800">Câmeras</h3>
+                  <span className="shrink-0 rounded-full bg-slate-800/10 px-2.5 py-1 text-xs font-bold text-slate-700">Total: {formatNumber(cameraTotal)}</span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">{formatNumber(camerasOnline)} operacionais · {formatNumber(camerasDown)} indisponíveis</p>
+              </div>
+              {cameras.error && <div className="m-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{cameras.error}</div>}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-1.5 p-3">
+                  {cameraStatuses.map((status) => (
+                    <div key={status.key} className="flex min-w-0 items-center gap-1.5 rounded-lg border border-white/50 bg-white/35 px-2 py-1.5">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: status.color }} />
+                      <span className="truncate text-[10px] font-medium text-slate-600">{status.label}</span>
+                      <strong className="ml-auto text-xs text-slate-800">{formatNumber(status.count)}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3 border-t border-slate-200 p-4 text-xs text-slate-600">
+                  <div className="flex justify-between"><span>Disponibilidade</span><strong className="text-slate-800">{cameraTotal ? `${formatDecimal(cameraAvailability)}%` : '—'}</strong></div>
+                  <div className="flex justify-between"><span>Em manutenção</span><strong className="text-slate-800">{formatNumber(cameras?.counts?.A || 0)}</strong></div>
+                </div>
+              </div>
+              <div className="border-t border-slate-300/60 bg-white/20 px-3 py-2 text-[10px] text-slate-500">
+                {cameras.loading ? 'Carregando câmeras…' : 'Rede de câmeras Tixxi • atualização automática'}
+              </div>
+            </>
+          )}
         </aside>
       </div>
     </div>
@@ -432,7 +542,7 @@ export default function App() {
             title="Mapa operacional"
             subtitle="Ocorrências geolocalizadas da API Hexagon no mapa e dados de congestionamento do Waze na lateral"
           />
-          <MonitoringPrototype occurrences={occurrences} waze={waze} semaforos={semaforos} />
+          <MonitoringPrototype occurrences={occurrences} waze={waze} semaforos={semaforos} cameras={cameras} />
         </section>
       )}
 
