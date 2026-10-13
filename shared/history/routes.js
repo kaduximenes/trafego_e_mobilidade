@@ -119,6 +119,107 @@ async function syncDerivedTables(store, result) {
   return summary
 }
 
+// Núcleo da coleta, compartilhado entre o endpoint HTTP (POST /api/collect) e o
+// coletor em segundo plano. Faz o fetch, grava métricas, frame, tabelas
+// derivadas e a poda — e devolve o resumo que o endpoint serializa.
+async function runCollection(env, store) {
+  const result = await collectAll(env)
+  const inserted = await store.insertSamples(result.collectedAt, result.samples)
+
+  const sourcesOk = result.samples.filter((s) => s.ok).map((s) => s.source)
+  const sourcesFailed = result.samples.filter((s) => !s.ok).map((s) => s.source)
+
+  // O frame é gravado junto das métricas: assim o replay do mapa tem
+  // exatamente o mesmo instante da série temporal.
+  const payloadBytes = await store.insertFrame({
+    collectedAt: result.collectedAt,
+    payload: buildFramePayload(result.samples),
+    sourcesOk,
+    sourcesFailed,
+  })
+
+  const lifecycle = await syncDerivedTables(store, result)
+
+  // Poda dos frames mais antigos: é a única tabela que cresce o suficiente
+  // para estourar um free tier. As tabelas analíticas nunca são podadas.
+  const cutoff = retentionCutoff(env)
+  const prunedFrames = cutoff ? await store.pruneFrames(cutoff) : 0
+
+  return {
+    collectedAt: result.collectedAt,
+    inserted,
+    payloadBytes,
+    driver: store.name,
+    ok: result.ok,
+    failed: sourcesFailed,
+    lifecycle,
+    prunedFrames,
+    sources: result.samples.map((sample) => ({
+      source: sample.source,
+      ok: sample.ok,
+      error: sample.error,
+    })),
+  }
+}
+
+// Coletor em segundo plano: faz o servidor capturar dados sozinho enquanto a
+// instância está acordada (logo após um deploy, com visitantes, ou entre dois
+// despertares do cron). NÃO substitui o agendador externo (GitHub Actions):
+// no plano free do Render a instância hiberna após alguns minutos sem acesso, e
+// só uma chamada de fora a acorda. Enquanto acordada, porém, ela coleta por
+// conta própria — rede de segurança para quando o cron atrasa e granularidade
+// extra durante o uso ativo.
+export function startBackgroundCollector(
+  env = {},
+  { intervalMs = 15 * 60 * 1000, collectOnStart = true, log = console } = {},
+) {
+  // Sem banco persistente, auto-coletar só encheria o arquivo efêmero do driver
+  // de desenvolvimento. O coletor em segundo plano exige DATABASE_URL.
+  if (!env.DATABASE_URL) {
+    return { start: () => () => {} }
+  }
+
+  let storePromise = null
+  const getStore = () => {
+    if (!storePromise) storePromise = createMetricStore(env)
+    return storePromise
+  }
+
+  let running = false
+  const tick = async () => {
+    if (running) return
+    running = true
+    try {
+      const store = await getStore()
+      const summary = await runCollection(env, store)
+      const okCount = summary.sources.filter((source) => source.ok).length
+      log.log(
+        `[coleta automática] ${summary.collectedAt} ${okCount}/${summary.sources.length} fontes ok, ${summary.payloadBytes} bytes`,
+      )
+    } catch (err) {
+      log.error(`[coleta automática] falhou: ${err?.message || err}`)
+    } finally {
+      running = false
+    }
+  }
+
+  let timer = null
+  return {
+    start() {
+      if (timer) return () => {}
+      if (collectOnStart) {
+        // Pequena espera para o servidor estar de pé antes da primeira coleta.
+        setTimeout(() => void tick(), 5000)
+      }
+      timer = setInterval(() => void tick(), intervalMs)
+      return () => {
+        clearInterval(timer)
+        timer = null
+      }
+    },
+  }
+}
+
 // `store` é opcional: nos testes e em /api/metrics quando não há banco, o
 // handler pode receber um store já pronto em vez de criar um novo a cada chamada.
 export function createHistoryHandlers(env = {}) {
@@ -146,47 +247,10 @@ export function createHistoryHandlers(env = {}) {
       }
 
       try {
-        const result = await collectAll(env)
         const store = await getStore()
-        const inserted = await store.insertSamples(result.collectedAt, result.samples)
-
-        const sourcesOk = result.samples.filter((s) => s.ok).map((s) => s.source)
-        const sourcesFailed = result.samples.filter((s) => !s.ok).map((s) => s.source)
-
-        // O frame é gravado junto das métricas: assim o replay do mapa tem
-        // exatamente o mesmo instante da série temporal.
-        const payloadBytes = await store.insertFrame({
-          collectedAt: result.collectedAt,
-          payload: buildFramePayload(result.samples),
-          sourcesOk,
-          sourcesFailed,
-        })
-
-        const lifecycle = await syncDerivedTables(store, result)
-
-        // Poda dos frames mais antigos: é a única tabela que cresce o suficiente
-        // para estourar um free tier. As tabelas analíticas nunca são podadas.
-        const cutoff = retentionCutoff(env)
-        const prunedFrames = cutoff ? await store.pruneFrames(cutoff) : 0
-
+        const payload = await runCollection(env, store)
         res.setHeader('Content-Type', 'application/json')
-        res.end(
-          JSON.stringify({
-            collectedAt: result.collectedAt,
-            inserted,
-            payloadBytes,
-            driver: store.name,
-            ok: result.ok,
-            failed: sourcesFailed,
-            lifecycle,
-            prunedFrames,
-            sources: result.samples.map((sample) => ({
-              source: sample.source,
-              ok: sample.ok,
-              error: sample.error,
-            })),
-          }),
-        )
+        res.end(JSON.stringify(payload))
       } catch (err) {
         res.statusCode = 500
         res.setHeader('Content-Type', 'application/json')

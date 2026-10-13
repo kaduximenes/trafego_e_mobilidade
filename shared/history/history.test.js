@@ -27,7 +27,7 @@ import { collectAll, collectOccurrences, collectTrafficLights } from './collecto
 import { buildFramePayload, occurrencesFrame, wazeFrame, trafficLightsFrame, camerasFrame } from './collector.js'
 import { entityStatesOf, occurrenceRecords } from './collector.js'
 import { createFileStore, diffEntities, pickFrameAt, getRetentionConfig, retentionCutoff } from './metricStore.js'
-import { createHistoryHandlers, isCollectAuthorized } from './routes.js'
+import { createHistoryHandlers, isCollectAuthorized, startBackgroundCollector } from './routes.js'
 
 // ------------------------------------------------------------------ domínio --
 
@@ -1163,5 +1163,31 @@ describe('rotas do histórico', () => {
     assert.ok(await fs.stat(`${dir6}/frames-${legacyDay}.jsonl`))
 
     await fs.rm(dir6, { recursive: true, force: true })
+  })
+})
+
+describe('coletor em segundo plano', () => {
+  it('não coleta sem DATABASE_URL (o driver de arquivo é só para dev)', () => {
+    const logs = []
+    const collector = startBackgroundCollector(
+      { HISTORY_DIR: '/tmp/qualquer' },
+      { log: { log: (...args) => logs.push(args), error: (...args) => logs.push(args) } },
+    )
+
+    const stop = collector.start()
+    assert.equal(typeof stop, 'function')
+    stop()
+
+    // Sem banco persistente o coletor fica inerte: nada é agendado nem logado.
+    assert.equal(logs.length, 0)
+  })
+
+  it('expõe um start idempotente (não duplica o timer)', () => {
+    const collector = startBackgroundCollector({ DATABASE_URL: 'postgres://x/y' }, { collectOnStart: false })
+    const first = collector.start()
+    const second = collector.start()
+    assert.equal(typeof first, 'function')
+    assert.equal(second(), undefined)
+    first()
   })
 })

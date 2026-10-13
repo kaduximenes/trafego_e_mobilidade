@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { proxyRoutes } from '../shared/proxyRoutes.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
 import { createHealthHandler } from '../shared/health.js'
-import { createHistoryHandlers } from '../shared/history/routes.js'
+import { createHistoryHandlers, startBackgroundCollector } from '../shared/history/routes.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '..', 'dist')
@@ -43,6 +43,12 @@ app.get('/api/snapshot', (req, res) => history.snapshot(req, res))
 app.get('/api/frames', (req, res) => history.frames(req, res))
 app.get('/api/occurrences', (req, res) => history.occurrences(req, res))
 app.get('/api/state-changes', (req, res) => history.stateChanges(req, res))
+
+// Coleta automática no servidor: cobre o período em que a instância está
+// acordada (deploy, visitantes, ou o cron que a desperta). O agendador externo
+// continua sendo necessário para acordar a instância quando ninguém a acessa.
+const collectIntervalMs = Number(process.env.COLLECT_INTERVAL_MINUTES || 15) * 60 * 1000
+startBackgroundCollector(process.env, { intervalMs: collectIntervalMs }).start()
 
 // Intercepta o Login do COR: o cliente não precisa conhecer as credenciais,
 // elas são injetadas aqui (e nunca entram no bundle do navegador).
