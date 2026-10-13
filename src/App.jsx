@@ -83,7 +83,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
       <div className="relative h-[calc(75vh+24px)] min-h-[674px] max-h-[804px] p-3">
-        <aside className="absolute left-7 top-7 z-[1000] flex h-[calc(75vh-2rem)] min-h-[610px] max-h-[740px] w-[270px] flex-col overflow-hidden rounded-[22px] border border-white/70 bg-white/55 shadow-[0_20px_48px_rgba(15,23,42,0.14)] backdrop-blur-[3px] max-sm:left-5 max-sm:w-[calc(50%-1.5rem)] max-sm:min-h-[500px] max-sm:h-[calc(70vh-1rem)]">
+        <aside className={`absolute left-7 top-7 z-[1000] flex w-[270px] flex-col overflow-hidden rounded-[22px] border border-white/70 bg-white/55 shadow-[0_20px_48px_rgba(15,23,42,0.14)] backdrop-blur-[3px] max-sm:left-5 max-sm:w-[calc(50%-1.5rem)] ${filtersOpen ? 'h-[calc(75vh-2rem)] min-h-[610px] max-h-[740px] max-sm:min-h-[500px] max-sm:h-[calc(70vh-1rem)]' : ''}`}>
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Camadas e filtros</div>
@@ -95,58 +95,60 @@ function MonitoringPrototype({ occurrences, waze, semaforos }) {
           </div>
 
           {filtersOpen && (
-            <div className="space-y-4 border-b border-slate-200 p-3">
-              <div>
-                <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Layers size={13} /> Tipo de mapa</div>
-                <div className="space-y-1.5">
-                  {[['street', 'Rua'], ['dark', 'Escuro']].map(([value, label]) => (
-                    <button key={value} type="button" aria-pressed={mapLayer === value} onClick={() => setMapLayer(value)} className={`w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${mapLayer === value ? 'bg-amber-400/90 text-slate-900' : 'bg-white/30 text-slate-600 hover:bg-white/55'}`}>
-                      {label}
-                    </button>
-                  ))}
+            <>
+              <div className="space-y-4 border-b border-slate-200 p-3">
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Layers size={13} /> Tipo de mapa</div>
+                  <div className="space-y-1.5">
+                    {[['street', 'Rua'], ['dark', 'Escuro']].map(([value, label]) => (
+                      <button key={value} type="button" aria-pressed={mapLayer === value} onClick={() => setMapLayer(value)} className={`w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${mapLayer === value ? 'bg-amber-400/90 text-slate-900' : 'bg-white/30 text-slate-600 hover:bg-white/55'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Gauge size={13} /> Prioridade das ocorrências</div>
-                <div className="space-y-1.5">
-                  {[
-                    ['high', 'Alta', '#ef4444'],
-                    ['medium', 'Média', '#f59e0b'],
-                    ['low', 'Baixa', '#3b82f6'],
-                  ].map(([severity, label, color]) => (
-                    <label key={severity} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/30 px-3 py-2 text-xs text-slate-700 hover:bg-white/55">
-                      <input type="checkbox" checked={visibleSeverities.includes(severity)} onChange={() => setVisibleSeverities((current) => current.includes(severity) ? current.filter((item) => item !== severity) : [...current, severity])} className="accent-amber-500" />
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-                      {label}
-                    </label>
-                  ))}
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Gauge size={13} /> Prioridade das ocorrências</div>
+                  <div className="space-y-1.5">
+                    {[
+                      ['high', 'Alta', '#ef4444'],
+                      ['medium', 'Média', '#f59e0b'],
+                      ['low', 'Baixa', '#3b82f6'],
+                    ].map(([severity, label, color]) => (
+                      <label key={severity} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/30 px-3 py-2 text-xs text-slate-700 hover:bg-white/55">
+                        <input type="checkbox" checked={visibleSeverities.includes(severity)} onChange={() => setVisibleSeverities((current) => current.includes(severity) ? current.filter((item) => item !== severity) : [...current, severity])} className="accent-amber-500" />
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Route size={13} /> Trânsito do Waze</div>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/30 px-3 py-2 text-xs text-slate-700 hover:bg-white/55">
+                    <input type="checkbox" checked={showWazeCongestion} onChange={(event) => setShowWazeCongestion(event.target.checked)} className="accent-rose-500" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-600" />
+                    Engarrafamentos intensos
+                    <span className="ml-auto text-[10px] text-slate-500">{formatNumber(congestedJams.length)}</span>
+                  </label>
+                  <p className="mt-1 px-1 text-[10px] leading-relaxed text-slate-500">Trechos com nível de congestionamento 3 a 5.</p>
+                </div>
+                <p className="rounded-lg bg-white/30 p-2 text-[10px] leading-relaxed text-slate-600">
+                  Mostrando {visibleEvents.length} de {mapEvents.length} ocorrências Hexagon. O trânsito do Waze é exibido como linhas separadas.
+                </p>
               </div>
-              <div>
-                <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Route size={13} /> Trânsito do Waze</div>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/30 px-3 py-2 text-xs text-slate-700 hover:bg-white/55">
-                  <input type="checkbox" checked={showWazeCongestion} onChange={(event) => setShowWazeCongestion(event.target.checked)} className="accent-rose-500" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-rose-600" />
-                  Engarrafamentos intensos
-                  <span className="ml-auto text-[10px] text-slate-500">{formatNumber(congestedJams.length)}</span>
-                </label>
-                <p className="mt-1 px-1 text-[10px] leading-relaxed text-slate-500">Trechos com nível de congestionamento 3 a 5.</p>
+              {occurrences.error && (
+                <div className="m-3 rounded-xl border border-rose-200/80 bg-rose-50/75 p-2.5 text-xs text-rose-700">
+                  <div className="flex items-start gap-2"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{occurrences.error}</div>
+                  <button type="button" onClick={() => occurrences.refresh({ silent: false })} className="mt-2 font-semibold underline">Tentar novamente</button>
+                </div>
+              )}
+              <div className="mt-auto border-t border-slate-300/60 bg-white/20 px-3 py-3 text-[10px] text-slate-600">
+                <div className="font-semibold uppercase tracking-wider text-slate-600">Hexagon • COR</div>
+                <div className="mt-1">{incidentCount} ocorrências abertas • {criticalCount} prioridade alta</div>
               </div>
-              <p className="rounded-lg bg-white/30 p-2 text-[10px] leading-relaxed text-slate-600">
-                Mostrando {visibleEvents.length} de {mapEvents.length} ocorrências Hexagon. O trânsito do Waze é exibido como linhas separadas.
-              </p>
-            </div>
+            </>
           )}
-          {occurrences.error && (
-            <div className="m-3 rounded-xl border border-rose-200/80 bg-rose-50/75 p-2.5 text-xs text-rose-700">
-              <div className="flex items-start gap-2"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{occurrences.error}</div>
-              <button type="button" onClick={() => occurrences.refresh({ silent: false })} className="mt-2 font-semibold underline">Tentar novamente</button>
-            </div>
-          )}
-          <div className="mt-auto border-t border-slate-300/60 bg-white/20 px-3 py-3 text-[10px] text-slate-600">
-            <div className="font-semibold uppercase tracking-wider text-slate-600">Hexagon • COR</div>
-            <div className="mt-1">{incidentCount} ocorrências abertas • {criticalCount} prioridade alta</div>
-          </div>
         </aside>
 
         <main className="absolute inset-3 z-0 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-200">
