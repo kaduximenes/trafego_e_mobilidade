@@ -1,25 +1,13 @@
 // Cliente da API Tixxi
 // As chamadas passam pelo proxy do Vite (/api/tixxi) para contornar o CORS.
 
+import { CAMERA_STATUS, getStatusInfo, normalizeCameras } from '../../shared/domain/cameras.js'
+
 const BASE = '/api/tixxi'
 
-// Mapeamento do campo CameraStatus da Tixxi para estados visuais do painel.
-// '0'  → Operacional
-// '1'  → Desligada
-// '3'  → Sem Comunicação / Offline
-// 'A'  → Manutenção (FIXA / sem stream)
-// '5'  → Intermitente / Instável
-export const CAMERA_STATUS = {
-  0: { key: 'online', label: 'Operacional', color: '#10B981', badge: 'ok' },
-  1: { key: 'off', label: 'Desligada', color: '#EF4444', badge: 'danger' },
-  3: { key: 'offline', label: 'Sem Comunicação', color: '#EF4444', badge: 'danger' },
-  A: { key: 'maintenance', label: 'Manutenção', color: '#8B5CF6', badge: 'maintenance' },
-  5: { key: 'intermittent', label: 'Intermitente', color: '#F59E0B', badge: 'warn' },
-}
-
-export function getStatusInfo(status) {
-  return CAMERA_STATUS[status] || { key: 'unknown', label: `Status ${status}`, color: '#64748B', badge: 'unknown' }
-}
+// O catálogo de status, a contagem e a normalização puras ficam em
+// shared/domain/cameras.js, compartilhados com o coletor do histórico.
+export { CAMERA_STATUS, getStatusInfo }
 
 // Lê o corpo JSON de uma resposta de erro para extrair a mensagem da API.
 async function readErrorDetail(res) {
@@ -134,30 +122,9 @@ export async function login() {
   }
 }
 
-// Normaliza a resposta de câmeras: deduplica por código e mapeia o status.
-// Cada câmera pode ter múltiplos streams (html/raw); mantemos o stream 'html' preferencial.
-export function normalizeCameras(cameras) {
-  const byCode = new Map()
-  for (const c of cameras || []) {
-    const existing = byCode.get(c.code)
-    const isHtml = c.stream_type === 'html'
-    if (!existing || (isHtml && existing.stream_type !== 'html')) {
-      byCode.set(c.code, c)
-    }
-  }
-  return Array.from(byCode.values()).map((c) => ({
-    id: c.id,
-    code: c.code,
-    name: c.name,
-    latitude: c.latitude,
-    longitude: c.longitude,
-    statusRaw: c.CameraStatus,
-    status: getStatusInfo(c.CameraStatus),
-    streamUrl: c.stream_url,
-    streamType: c.stream_type,
-  }))
-}
-
+// Busca a lista de câmeras e normaliza (deduplicação por código e mapeamento
+// de status). Cada câmera pode ter múltiplos streams (html/raw); mantemos o
+// stream 'html' preferencial.
 export async function getCameras() {
   const token = await login()
   const data = await withRetry(() => get('/api/cameras', token))

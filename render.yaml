@@ -32,3 +32,30 @@ services:
       # pública. Só funciona se o Render tiver rota até essa rede (VPN/Túnel).
       - key: TIXXI_TARGET
         sync: false
+      # --- Histórico de métricas -------------------------------------------
+      # Segredo do POST /api/collect (mesmo valor usado pelo agendador).
+      - key: COLLECT_SECRET
+        sync: false
+      # Banco do histórico. Sem ele o servidor usa o driver de arquivo, que NÃO
+      # sobrevive a deploys/restarts em hospedagem efêmera — em produção defina
+      # um Postgres (Neon/Supabase).
+      - key: DATABASE_URL
+        sync: false
+      - key: TIXXI_API_KEY
+        sync: false
+      - key: TIXXI_EMAIL
+        sync: false
+      - key: TIXXI_PASSWORD
+        sync: false
+      - key: CORIO_EVENTS_USERNAME
+        sync: false
+      - key: CORIO_EVENTS_PASSWORD
+        sync: false
+
+# A coleta NÃO roda por setInterval dentro deste serviço: no plano `free` o web
+# service hiberna após alguns minutos sem acesso, o que deixaria buracos no
+# histórico justamente nos horários sem operador. O agendamento é externo —
+# veja .github/workflows/collect-metrics.yml (GitHub Actions, gratuito), que
+# chama POST /api/collect a cada 15 minutos com o COLLECT_SECRET.
+# Alternativa paga: um serviço do tipo `cron` no Render apontando para o mesmo
+# endpoint.

@@ -1,0 +1,59 @@
+# Coleta periódica do histórico de métricas.
+#
+# Por que no GitHub Actions e não com `setInterval` no servidor: no plano gratuito
+# do Render o web service hiberna após alguns minutos sem acesso, então um
+# intervalo dentro do processo deixaria buracos no histórico — justamente nos
+# horários sem operador. O Actions chama o endpoint de tempos em tempos e mantém
+# a série contínua sem custo.
+#
+# Configuração necessária no repositório (Settings → Secrets and variables →
+# Actions → Secrets):
+#   HISTORY_BASE_URL  URL pública do serviço, sem barra no final
+#                     (ex.: https://trafego-iacor.onrender.com)
+#   COLLECT_SECRET    mesmo valor configurado no servidor
+#
+# Observação: as câmeras da Tixxi ficam em rede interna do COR e não são
+# alcançáveis a partir do runner; elas entram como amostra indisponível, sem
+# afetar as demais fontes.
+
+name: Coleta de métricas
+
+on:
+  schedule:
+    # A cada 15 minutos. O GitHub pode atrasar execuções agendadas em períodos
+    # de pico, o que é aceitável para uma série histórica com granularidade de
+    # minutos.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: collect-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Disparar a coleta
+        env:
+          BASE_URL: ${{ secrets.HISTORY_BASE_URL }}
+          COLLECT_SECRET: ${{ secrets.COLLECT_SECRET }}
+        run: |
+          if [ -z "$BASE_URL" ] || [ -z "$COLLECT_SECRET" ]; then
+            echo "::error::Defina os secrets HISTORY_BASE_URL e COLLECT_SECRET no repositório."
+            exit 1
+          fi
+
+          # O servidor hibernado precisa acordar antes de atender: damos um
+          # tempo maior na primeira tentativa e repetimos em caso de 5xx.
+          curl --silent --show-error \
+            --request POST \
+            --header "x-collect-secret: $COLLECT_SECRET" \
+            --max-time 120 \
+            --retry 2 \
+            --retry-delay 20 \
+            --retry-connrefused \
+            --fail-with-body \
+            "$BASE_URL/api/collect"

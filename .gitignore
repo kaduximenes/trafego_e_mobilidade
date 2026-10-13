@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Histórico local (driver de arquivo do desenvolvimento)
+var/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,4 +1,6 @@
-import { resolveEventType } from '../data/eventTypeMap'
+import { aggregateEvents, normalizeEvents, severityKeyOf } from '../../shared/domain/eventos.js'
+
+export { aggregateEvents, severityKeyOf }
 
 const TOKEN_STORAGE_KEY = 'corio_events_token'
 const TOKEN_EXPIRY_KEY = 'corio_events_token_expiry'
@@ -12,18 +14,8 @@ const EVENTS_API_BASE =
 const OPEN_EVENTS_PATH = '/OpenedEvents'
 const REQUEST_TIMEOUT_MS = 15000
 
-const severityPalette = {
-  high: { key: 'high', label: 'Alta', color: '#EF4444' },
-  medium: { key: 'medium', label: 'Média', color: '#F59E0B' },
-  low: { key: 'low', label: 'Baixa', color: '#3B82F6' },
-}
-
-// Regra única de severidade: a API pode enviar valores fora do trio conhecido,
-// que passam a contar como 'medium'. Exportada para que filtros da UI usem
-// exatamente a mesma classificação dos contadores.
-export function severityKeyOf(event) {
-  return severityPalette[event?.severity] ? event.severity : 'medium'
-}
+// A normalização e a agregação puras (severidade, tipo, feed) vivem em
+// shared/domain/eventos.js, compartilhadas com o coletor do histórico.
 
 function getTokenFromStorage() {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY)
@@ -80,72 +72,6 @@ async function parseJson(response) {
 function readServerMessage(payload, fallback) {
   if (!payload || typeof payload !== 'object') return fallback
   return payload.Message || payload.message || payload.error || payload.detail || fallback
-}
-
-function getNestedValue(data, keys) {
-  for (const key of keys) {
-    const value = data?.[key]
-    if (value !== undefined && value !== null && value !== '') return value
-  }
-  return undefined
-}
-
-function asArray(value) {
-  if (Array.isArray(value)) return value
-  if (value && typeof value === 'object') {
-    for (const candidate of [value.data, value.result, value.items, value.events, value.openedEvents]) {
-      if (Array.isArray(candidate)) return candidate
-    }
-  }
-  return []
-}
-
-function normalizeTimestamp(raw) {
-  const parsed = new Date(raw ?? Date.now())
-  return Number.isNaN(parsed.getTime()) ? Date.now() : parsed.getTime()
-}
-
-function toNumber(raw) {
-  const value = Number(raw)
-  return Number.isFinite(value) ? value : null
-}
-
-// A API devolve: EventId, AgencyEventTypeCode, CreatedDate, Latitude,
-// Longitude, Location e Priority.
-function normalizeEvent(raw = {}) {
-  const type = resolveEventType(
-    getNestedValue(raw, ['AgencyEventTypeCode', 'agencyEventTypeCode', 'eventType', 'type']),
-  )
-
-  const createdRaw = getNestedValue(raw, ['CreatedDate', 'createdDate', 'createdAt', 'date', 'timestamp'])
-  const location = String(getNestedValue(raw, ['Location', 'location', 'address']) || 'Local não informado')
-  const latitude = toNumber(getNestedValue(raw, ['Latitude', 'latitude']))
-  const longitude = toNumber(getNestedValue(raw, ['Longitude', 'longitude']))
-  const priority = toNumber(getNestedValue(raw, ['Priority', 'priority']))
-
-  const id =
-    getNestedValue(raw, ['EventId', 'eventId', 'id']) ||
-    `${type.code}-${normalizeTimestamp(createdRaw)}-${Math.random().toString(36).slice(2, 8)}`
-
-  return {
-    id: String(id),
-    code: String(id),
-    type: type.label,
-    typeCode: type.code,
-    typeKey: type.code.toLowerCase(),
-    icon: type.icon,
-    severity: type.severity,
-    severityLabel: severityPalette[type.severity].label,
-    severityColor: severityPalette[type.severity].color,
-    priority,
-    description: location,
-    location,
-    coordinates: latitude !== null && longitude !== null ? { latitude, longitude } : null,
-    // O endpoint retorna apenas ocorrências abertas.
-    status: 'Ativo',
-    createdAt: createdRaw || new Date().toISOString(),
-    timestamp: normalizeTimestamp(createdRaw),
-  }
 }
 
 // A API invalida o token anterior a cada novo Login. Requisições concorrentes
@@ -236,9 +162,7 @@ async function loadActiveEvents() {
     throw new Error(readServerMessage(payload, 'A API COR retornou uma mensagem inesperada.'))
   }
 
-  return asArray(payload)
-    .map(normalizeEvent)
-    .sort((a, b) => b.timestamp - a.timestamp)
+  return normalizeEvents(payload)
 }
 
 // Requisições concorrentes (StrictMode, polling e clique manual) compartilham o
@@ -254,60 +178,4 @@ export function fetchActiveEvents() {
   }
 
   return activeEventsInFlight
-}
-
-export function aggregateEvents(events = []) {
-  const normalized = Array.isArray(events) ? events : []
-
-  const severityCounts = {
-    high: {
-      key: 'high',
-      label: 'Alta',
-      count: 0,
-      color: severityPalette.high.color,
-      description: 'Risco à vida • Vias interditadas',
-    },
-    medium: {
-      key: 'medium',
-      label: 'Média',
-      count: 0,
-      color: severityPalette.medium.color,
-      description: 'Bloqueios parciais • Tráfego comprometido',
-    },
-    low: {
-      key: 'low',
-      label: 'Baixa',
-      count: 0,
-      color: severityPalette.low.color,
-      description: 'Manutenção • Impacto operacional leve',
-    },
-  }
-
-  const typeMap = new Map()
-
-  for (const event of normalized) {
-    const severityKey = severityKeyOf(event)
-    severityCounts[severityKey].count += 1
-
-    const key = event.typeKey || 'ocorrencia_geral'
-    if (!typeMap.has(key)) {
-      typeMap.set(key, {
-        key,
-        label: event.type || 'Ocorrência geral',
-        value: 0,
-        color: event.severityColor,
-      })
-    }
-
-    typeMap.get(key).value += 1
-  }
-
-  const palette = ['#00A8FF', '#EF4444', '#F59E0B', '#8B5CF6', '#10B981', '#38BDF8']
-  const typeCounts = Array.from(typeMap.values())
-    .sort((a, b) => b.value - a.value)
-    .map((item, index) => ({ ...item, color: palette[index % palette.length] }))
-
-  const feed = [...normalized].sort((a, b) => b.timestamp - a.timestamp)
-
-  return { severityCounts, typeCounts, feed }
 }

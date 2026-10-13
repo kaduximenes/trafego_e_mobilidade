@@ -1,12 +1,12 @@
 import { Activity, AlertTriangle, BarChart3, Camera, Map, Siren, TrafficCone } from 'lucide-react'
 import { CAMERA_STATUS } from '../../services/tixxi'
+import { UNAVAILABLE_CAMERA_STATUSES } from '../../../shared/domain/cameras.js'
 import { hourlyVolume, topHours } from '../../data/mockData'
 import { formatDecimal, formatNumber } from '../../utils/format'
 import { INFRASTRUCTURE_STATUS_LABEL, computeInfrastructureHealth } from '../../utils/infrastructure'
 import { Panel } from '../ui/Panel'
 
 const totalVehicles = hourlyVolume.reduce((total, item) => total + item.volume, 0)
-const unavailableCameraStatuses = ['1', '3', '5', 'A']
 
 function IndicatorCard({ icon: Icon, title, children, note, loading, error }) {
   return (
@@ -47,7 +47,7 @@ function Metric({ label, value, detail }) {
 }
 
 export function IndicatorsSummary({ occurrences, waze, cameras, semaforos }) {
-  const cameraUnavailable = unavailableCameraStatuses.reduce(
+  const cameraUnavailable = UNAVAILABLE_CAMERA_STATUSES.reduce(
     (total, status) => total + (cameras.counts[status] || 0),
     0,
   )

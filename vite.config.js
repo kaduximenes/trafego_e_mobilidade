@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 import { buildViteProxy } from './shared/proxyRoutes.js'
 import { createWazeFeedHandler } from './shared/wazeFeed.js'
+import { createHistoryHandlers } from './shared/history/routes.js'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,6 +11,7 @@ export default defineConfig(({ mode }) => {
   // cliente; aqui usamos loadEnv para ler WAZE_FEED_URL e mantê-la no servidor).
   const env = loadEnv(mode, process.cwd(), '')
   const wazeFeed = createWazeFeedHandler(env)
+  const history = createHistoryHandlers(env)
   const proxy = buildViteProxy(env)
 
   proxy['/api/antares'].configure = (proxyServer) => {
@@ -45,9 +47,21 @@ export default defineConfig(({ mode }) => {
         name: 'waze-feed-dev-endpoint',
         configureServer: (server) => {
           server.middlewares.use('/api/waze-feed', wazeFeed)
+          server.middlewares.use('/api/collect', (req, res, next) =>
+            req.method === 'POST' ? history.collect(req, res) : next(),
+          )
+          server.middlewares.use('/api/metrics', (req, res, next) =>
+            req.method === 'GET' ? history.metrics(req, res) : next(),
+          )
         },
         configurePreviewServer: (server) => {
           server.middlewares.use('/api/waze-feed', wazeFeed)
+          server.middlewares.use('/api/collect', (req, res, next) =>
+            req.method === 'POST' ? history.collect(req, res) : next(),
+          )
+          server.middlewares.use('/api/metrics', (req, res, next) =>
+            req.method === 'GET' ? history.metrics(req, res) : next(),
+          )
         },
       },
     ],

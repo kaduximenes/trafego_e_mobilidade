@@ -10,6 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { proxyRoutes } from '../shared/proxyRoutes.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
+import { createHistoryHandlers } from '../shared/history/routes.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '..', 'dist')
@@ -36,6 +37,13 @@ app.get('/healthz', (_req, res) => {
 // Feed do Waze: o token do parceiro fica só no servidor (a URL nunca chega ao
 // navegador) e o cache evita baixar ~1 MB por visitante a cada polling.
 app.get('/api/waze-feed', createWazeFeedHandler(process.env))
+
+// Histórico: POST /api/collect grava uma amostra de métricas por fonte e
+// GET /api/metrics lê o intervalo pedido. O POST exige COLLECT_SECRET, porque
+// o agendador (GitHub Actions/Render Cron) chama o endpoint de fora.
+const history = createHistoryHandlers(process.env)
+app.post('/api/collect', (req, res) => history.collect(req, res))
+app.get('/api/metrics', (req, res) => history.metrics(req, res))
 
 // Intercepta o Login do COR: o cliente não precisa conhecer as credenciais,
 // elas são injetadas aqui (e nunca entram no bundle do navegador).

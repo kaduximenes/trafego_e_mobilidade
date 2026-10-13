@@ -2,6 +2,9 @@
 // Fonte: "Índice POPs" (OPE-POP-001-R00 a OPE-POP-042-R00) e documentos das
 // revisões R01 a R06 (OPE-POP-043 a OPE-POP-053).
 // A API retorna apenas o código da agência (ex.: "POP23"), sem descrição.
+//
+// Fica em shared/ porque é consumido tanto pelo navegador (classificação das
+// ocorrências) quanto pelo coletor do histórico, no servidor.
 
 export const SEVERITY = { high: 'high', medium: 'medium', low: 'low' }
 
