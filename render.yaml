@@ -47,10 +47,6 @@ services:
         sync: false
       - key: TIXXI_PASSWORD
         sync: false
-      - key: CORIO_EVENTS_USERNAME
-        sync: false
-      - key: CORIO_EVENTS_PASSWORD
-        sync: false
 
 # A coleta NÃO roda por setInterval dentro deste serviço: no plano `free` o web
 # service hiberna após alguns minutos sem acesso, o que deixaria buracos no
