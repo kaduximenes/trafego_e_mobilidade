@@ -42,16 +42,24 @@ incorpore as coletas novas sem exigir recarregar a página.
 
 ### O que é gravado
 
-| Tabela | Conteúdo | Cadência | Retenção sugerida |
+| Tabela | Conteúdo | Cadência | Retenção |
 |---|---|---|---|
 | `metric_sample` | Métricas consolidadas por fonte | 15 min | indefinida |
-| `frame` | Estado compacto para o replay | 15 min | 90 dias |
+| `frame` | Estado compacto para o replay | 15 min | **90 dias** (podada automaticamente) |
 | `occurrence` | Abertura/fechamento com duração | por mudança | indefinida |
 | `state_change` | Transições de estado | por mudança | 1 ano |
 | `entity_state` | Estado corrente por entidade | a cada coleta | — |
 
 Um frame ocupa ~190 KB de JSON (**~35 KB** no Postgres, que comprime `jsonb`).
 A 15 min de cadência são ~96 frames/dia, ou seja, cerca de **100 MB/mês**.
+
+Como o frame responde por ~95% do volume, é a única tabela que precisa de poda.
+A cada coleta os frames anteriores ao corte (padrão 90 dias, configurável em
+`HISTORY_RETENTION_DAYS`) são removidos, levando o estado estacionário a
+**~300 MB** — dentro do 1 GB do Neon e dos 500 MB do Supabase. As tabelas
+analíticas nunca são podadas: são pequenas e são o valor de longo prazo.
+
+Quer manter tudo? `HISTORY_RETENTION_DAYS=0` desliga a poda.
 
 ### Como o ciclo de vida é detectado
 
@@ -112,9 +120,20 @@ npm run build   # build de produção
 O deploy é descrito em `render.yaml`. Três pontos exigem atenção:
 
 1. **O histórico precisa de banco persistente.** Sem `DATABASE_URL`, o servidor
-   usa um driver de arquivo que **perde tudo** a cada deploy/restart. Use um
-   Postgres (Neon/Supabase) e confirme em `/healthz`, que reporta
-   `history.persistent`.
+   usa um driver de arquivo que **perde tudo** a cada deploy/restart. Opções
+   gratuitas que persistem de verdade:
+
+   | Serviço | Free | Duração com a poda de 90 dias |
+   |---|---|---|
+   | **Neon** | 1 GB/projeto, free permanente | nunca enche (~300 MB) |
+   | **Supabase** | 500 MB (pausa após 1 semana inativo) | nunca enche |
+
+   > ⚠️ O Postgres gratuito do próprio Render **expira em 30 dias** — não use.
+   >
+   > A pausa por inatividade do Supabase não afeta este projeto: o coletor
+   > escreve a cada 15 minutos, o que conta como atividade.
+
+   Confirme em `/healthz`, que reporta `history.persistent` e `retentionDays`.
 
 2. **A coleta é agendada externamente.** No plano gratuito do Render o web service
    hiberna após alguns minutos sem acesso, então um `setInterval` dentro do

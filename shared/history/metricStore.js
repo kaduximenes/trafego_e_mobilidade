@@ -26,6 +26,32 @@ const ENTITY_STATE_TABLE = 'entity_state'
 // Entidades acompanhadas na detecção de transições de estado.
 export const TRACKED_ENTITIES = ['semaforos', 'cameras']
 
+// Retenção dos frames. O frame é 95% do volume do histórico (~100 MB/mês), então
+// é a única tabela que precisa de poda para caber em free tiers. As demais são
+// pequenas e, principalmente, são o valor analítico de longo prazo — `occurrence`
+// e `state_change` nunca são podadas.
+//
+// 90 dias deixam o estado estacionário em ~300 MB. Defina
+// HISTORY_RETENTION_DAYS=0 para manter tudo (útil com banco folgado).
+export const DEFAULT_RETENTION_DAYS = 90
+
+export function getRetentionConfig(env = {}) {
+  const raw = env.HISTORY_RETENTION_DAYS
+  const days = raw === undefined || raw === '' ? DEFAULT_RETENTION_DAYS : Number(raw)
+
+  // Valor ausente usa o padrão; 0 ou negativo desliga a poda explicitamente.
+  if (!Number.isFinite(days)) return { days: DEFAULT_RETENTION_DAYS, enabled: true }
+  return { days, enabled: days > 0 }
+}
+
+// Instante de corte: tudo anterior a ele pode ser removido. Devolve null quando
+// a poda está desligada.
+export function retentionCutoff(env = {}, now = new Date()) {
+  const { days, enabled } = getRetentionConfig(env)
+  if (!enabled) return null
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString()
+}
+
 export const METRIC_SOURCES = ['ocorrencias', 'waze', 'semaforos', 'cameras']
 
 // Quanto tempo para trás a busca por "frame em ou antes do instante" procura.
@@ -402,11 +428,21 @@ export function createPostgresStore(connectionString) {
       }))
     },
 
+    // Remove frames anteriores ao corte e devolve quantos foram apagados. O
+    // índice no tempo torna isso barato o suficiente para rodar a cada coleta.
+    async pruneFrames(before) {
+      const p = await getPool()
+      const { rowCount } = await p.query(
+        `DELETE FROM ${FRAME_TABLE} WHERE collected_at < $1`,
+        [before],
+      )
+      return rowCount || 0
+    },
+
     async getFrameAt(when) {
       const p = await getPool()
       const target = new Date(when)
       const lookback = new Date(target.getTime() - FRAME_LOOKBACK_MS)
-
       const { rows } = await p.query(
         `(SELECT collected_at, payload, payload_bytes, sources_ok, sources_failed
             FROM ${FRAME_TABLE}
@@ -727,6 +763,43 @@ export function createFileStore(dir) {
         sourcesOk: frame.sourcesOk,
         sourcesFailed: frame.sourcesFailed,
       }))
+    },
+
+    // Remove arquivos de dia inteiramente anteriores ao corte e devolve quantos
+    // arquivos foram apagados (não quantos frames — o arquivo é a unidade de
+    // remoção aqui). Um arquivo do dia D cobre [D 00:00, D+1 00:00), então só é
+    // removido quando o FIM do dia ainda é anterior ao corte.
+    async pruneFrames(before) {
+      const cutoff = new Date(before).getTime()
+      if (!Number.isFinite(cutoff)) return 0
+
+      let entries
+      try {
+        entries = await fs.readdir(dir)
+      } catch {
+        return 0
+      }
+
+      let removed = 0
+      for (const name of entries) {
+        const match = /^frames-(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(name)
+        if (!match) continue
+
+        const dayStart = new Date(`${match[1]}T00:00:00.000Z`).getTime()
+        if (!Number.isFinite(dayStart)) continue
+        // +1 ms para incluir o último instante do dia.
+        const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1
+        if (dayEnd < cutoff) {
+          try {
+            await fs.rm(`${dir}/${name}`, { force: true })
+            removed += 1
+          } catch {
+            /* arquivo já removido ou sem permissão: segue */
+          }
+        }
+      }
+
+      return removed
     },
 
     async getFrameAt(when) {

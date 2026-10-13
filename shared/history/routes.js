@@ -15,7 +15,7 @@
 // não vazar o segredo por diferença de tempo de resposta.
 
 import { timingSafeEqual } from 'node:crypto'
-import { createMetricStore, METRIC_SOURCES, TRACKED_ENTITIES, diffEntities } from './metricStore.js'
+import { createMetricStore, METRIC_SOURCES, TRACKED_ENTITIES, diffEntities, retentionCutoff } from './metricStore.js'
 import { buildFramePayload, collectAll, entityStatesOf, occurrenceRecords } from './collector.js'
 
 const DEFAULT_WINDOW_HOURS = 24
@@ -164,6 +164,11 @@ export function createHistoryHandlers(env = {}) {
 
         const lifecycle = await syncDerivedTables(store, result)
 
+        // Poda dos frames mais antigos: é a única tabela que cresce o suficiente
+        // para estourar um free tier. As tabelas analíticas nunca são podadas.
+        const cutoff = retentionCutoff(env)
+        const prunedFrames = cutoff ? await store.pruneFrames(cutoff) : 0
+
         res.setHeader('Content-Type', 'application/json')
         res.end(
           JSON.stringify({
@@ -174,6 +179,7 @@ export function createHistoryHandlers(env = {}) {
             ok: result.ok,
             failed: sourcesFailed,
             lifecycle,
+            prunedFrames,
             sources: result.samples.map((sample) => ({
               source: sample.source,
               ok: sample.ok,

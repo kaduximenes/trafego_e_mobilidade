@@ -26,7 +26,7 @@ import { resolveEventType } from '../domain/eventTypeMap.js'
 import { collectAll, collectOccurrences, collectTrafficLights } from './collector.js'
 import { buildFramePayload, occurrencesFrame, wazeFrame, trafficLightsFrame, camerasFrame } from './collector.js'
 import { entityStatesOf, occurrenceRecords } from './collector.js'
-import { createFileStore, diffEntities, pickFrameAt } from './metricStore.js'
+import { createFileStore, diffEntities, pickFrameAt, getRetentionConfig, retentionCutoff } from './metricStore.js'
 import { createHistoryHandlers, isCollectAuthorized } from './routes.js'
 
 // ------------------------------------------------------------------ domínio --
@@ -713,6 +713,120 @@ describe('store de arquivo: ciclo de vida', () => {
   })
 })
 
+// ------------------------------------------------------------------ retenção --
+
+describe('retenção de frames', () => {
+  it('usa 90 dias por padrão e desliga com 0 ou negativo', () => {
+    assert.deepEqual(getRetentionConfig({}), { days: 90, enabled: true })
+    assert.deepEqual(getRetentionConfig({ HISTORY_RETENTION_DAYS: '' }), { days: 90, enabled: true })
+    assert.deepEqual(getRetentionConfig({ HISTORY_RETENTION_DAYS: '30' }), { days: 30, enabled: true })
+    assert.deepEqual(getRetentionConfig({ HISTORY_RETENTION_DAYS: '0' }), { days: 0, enabled: false })
+    assert.deepEqual(getRetentionConfig({ HISTORY_RETENTION_DAYS: '-5' }), { days: -5, enabled: false })
+    // Valor não numérico cai no padrão em vez de remover tudo.
+    assert.deepEqual(getRetentionConfig({ HISTORY_RETENTION_DAYS: 'abc' }), { days: 90, enabled: true })
+  })
+
+  it('calcula o instante de corte', () => {
+    const now = new Date('2026-08-31T12:00:00.000Z')
+    assert.equal(retentionCutoff({ HISTORY_RETENTION_DAYS: '30' }, now), '2026-08-01T12:00:00.000Z')
+    assert.equal(retentionCutoff({}, now), '2026-06-02T12:00:00.000Z')
+    assert.equal(retentionCutoff({ HISTORY_RETENTION_DAYS: '0' }, now), null)
+  })
+
+  it('remove dias inteiros anteriores ao corte e preserva os recentes', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-prune-'))
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    // Três dias de frames: dois vencidos e um dentro da retenção.
+    for (const day of ['2026-07-01', '2026-07-02', '2026-08-30']) {
+      await store.insertFrame({
+        collectedAt: `${day}T10:00:00.000Z`,
+        payload: { occurrences: [{ id: day }] },
+        sourcesOk: ['ocorrencias'],
+        sourcesFailed: [],
+      })
+    }
+
+    // Corte em 2026-08-01: julho sai, agosto fica.
+    const removed = await store.pruneFrames('2026-08-01T00:00:00.000Z')
+    assert.equal(removed, 2)
+
+    const remaining = await store.listFrames({
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-12-31T00:00:00.000Z',
+    })
+    assert.equal(remaining.length, 1)
+    assert.equal(remaining[0].collectedAt, '2026-08-30T10:00:00.000Z')
+
+    // Poda repetida não encontra mais nada e não falha.
+    assert.equal(await store.pruneFrames('2026-08-01T00:00:00.000Z'), 0)
+
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('não remove o dia corrente quando o corte cai dentro dele', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-prune-today-'))
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    await store.insertFrame({
+      collectedAt: '2026-08-15T23:00:00.000Z',
+      payload: {},
+      sourcesOk: [],
+      sourcesFailed: [],
+    })
+
+    // Corte no meio do mesmo dia: o arquivo cobre até 23:59:59, então fica.
+    assert.equal(await store.pruneFrames('2026-08-15T12:00:00.000Z'), 0)
+    assert.equal(
+      (await store.listFrames({ from: '2026-08-15T00:00:00.000Z', to: '2026-08-15T23:59:59.999Z' })).length,
+      1,
+    )
+
+    // Corte no dia seguinte já permite remover.
+    assert.equal(await store.pruneFrames('2026-08-16T00:00:00.000Z'), 1)
+
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('ignora diretório inexistente e corte inválido', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-prune-empty-'))
+    const store = createFileStore(dir)
+    assert.equal(await store.pruneFrames('2026-08-01T00:00:00.000Z'), 0)
+    assert.equal(await store.pruneFrames('nao-e-data'), 0)
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('não toca nas tabelas analíticas ao podar', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-prune-keep-'))
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    const event = { id: 'A1', severity: 'high', typeKey: 'pop27', type: 'Alagamento', location: 'X', coordinates: [-22.9, -43.2] }
+    await store.syncOccurrences('2026-07-01T10:00:00.000Z', [event], [])
+    await store.insertStateChanges('2026-07-01T10:00:00.000Z', [
+      { entity: 'semaforos', entityId: 'C1', fromState: 'normal', toState: 'offline' },
+    ])
+
+    await store.pruneFrames('2026-08-01T00:00:00.000Z')
+
+    // As ocorrências e transições sobrevivem: são o valor de longo prazo.
+    const occurrences = await store.listOccurrences({
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-12-31T00:00:00.000Z',
+    })
+    assert.equal(occurrences.length, 1)
+    const changes = await store.queryStateChanges({
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-12-31T00:00:00.000Z',
+    })
+    assert.equal(changes.length, 1)
+
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+})
+
 describe('coletor: dados para as tabelas derivadas', () => {
   it('extrai o estado observado por entidade', () => {
     assert.deepEqual(
@@ -995,5 +1109,59 @@ describe('rotas do histórico', () => {
     const res = createRes()
     await handlers.stateChanges({ url: '/api/state-changes?entity=inventado' }, res)
     assert.equal(res.body.entity, null)
+  })
+
+  it('poda frames vencidos durante a coleta e reporta a quantidade', async () => {
+    const dir5 = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-prune-route-'))
+    const handlers = createHistoryHandlers({ ...env, HISTORY_DIR: dir5 })
+
+    // Um arquivo de frames antigo, já fora da retenção de 90 dias.
+    const legacy = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000)
+    const legacyDay = legacy.toISOString().slice(0, 10)
+    await fs.writeFile(
+      `${dir5}/frames-${legacyDay}.jsonl`,
+      `${JSON.stringify({ collectedAt: `${legacyDay}T10:00:00.000Z`, payload: {}, sourcesOk: [], sourcesFailed: [] })}\n`,
+      'utf8',
+    )
+
+    globalThis.fetch = stubFetch(FULL_ROUTES)
+    const res = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body.prunedFrames, 1)
+
+    // O frame recém-coletado continua disponível.
+    const frames = createRes()
+    await handlers.frames({ url: '/api/frames' }, frames)
+    assert.ok(frames.body.count >= 1)
+
+    await fs.rm(dir5, { recursive: true, force: true })
+  })
+
+  it('não poda nada quando a retenção está desligada', async () => {
+    const dir6 = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-noprune-'))
+    const handlers = createHistoryHandlers({
+      ...env,
+      HISTORY_DIR: dir6,
+      HISTORY_RETENTION_DAYS: '0',
+    })
+
+    const legacy = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000)
+    const legacyDay = legacy.toISOString().slice(0, 10)
+    await fs.writeFile(
+      `${dir6}/frames-${legacyDay}.jsonl`,
+      `${JSON.stringify({ collectedAt: `${legacyDay}T10:00:00.000Z`, payload: {}, sourcesOk: [], sourcesFailed: [] })}\n`,
+      'utf8',
+    )
+
+    globalThis.fetch = stubFetch(FULL_ROUTES)
+    const res = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, res)
+
+    assert.equal(res.body.prunedFrames, 0)
+    assert.ok(await fs.stat(`${dir6}/frames-${legacyDay}.jsonl`))
+
+    await fs.rm(dir6, { recursive: true, force: true })
   })
 })

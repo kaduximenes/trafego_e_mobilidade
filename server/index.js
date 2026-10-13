@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { proxyRoutes } from '../shared/proxyRoutes.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
 import { createHistoryHandlers } from '../shared/history/routes.js'
-import { getHistoryConfig } from '../shared/history/metricStore.js'
+import { getHistoryConfig, getRetentionConfig } from '../shared/history/metricStore.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '..', 'dist')
@@ -29,6 +29,7 @@ app.disable('x-powered-by')
 
 app.get('/healthz', (_req, res) => {
   const history = getHistoryConfig(process.env)
+  const retention = getRetentionConfig(process.env)
   res.json({
     status: 'ok',
     antaresKeyConfigured: Boolean(ANTARES_API_KEY),
@@ -40,6 +41,7 @@ app.get('/healthz', (_req, res) => {
       persistent: history.driver === 'postgres',
       collectSecretConfigured: Boolean(process.env.COLLECT_SECRET),
       collectScheduleEndpoint: '/api/collect',
+      retentionDays: retention.enabled ? retention.days : null,
     },
   })
 })
