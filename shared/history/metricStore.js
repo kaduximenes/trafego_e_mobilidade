@@ -368,6 +368,10 @@ export function createPostgresStore(connectionString, { createPool = null } = {}
       changes.forEach((change, index) => {
         const base = index * 5
         values.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`)
+        // Todas as mudanças de um lote compartilham o mesmo `changedAt` (é o
+        // instante da coleta, não o da transição). Por isso a consulta precisa
+        // ordenar também por `id`: dentro do lote, só o bigserial preserva a
+        // ordem de inserção.
         params.push(changedAt, change.entity, change.entityId, change.fromState, change.toState)
       })
 
@@ -386,7 +390,7 @@ export function createPostgresStore(connectionString, { createPool = null } = {}
            FROM ${STATE_CHANGE_TABLE}
           WHERE changed_at >= $1 AND changed_at <= $2
             AND ($3::text IS NULL OR entity = $3)
-          ORDER BY changed_at DESC
+          ORDER BY changed_at DESC, id ASC
           LIMIT $4`,
         [from, to, entity, limit],
       )

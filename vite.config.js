@@ -4,6 +4,7 @@ import { defineConfig, loadEnv } from 'vite'
 import { buildViteProxy } from './shared/proxyRoutes.js'
 import { createWazeFeedHandler } from './shared/wazeFeed.js'
 import { createHistoryHandlers } from './shared/history/routes.js'
+import { createHealthHandler } from './shared/health.js'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -12,6 +13,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const wazeFeed = createWazeFeedHandler(env)
   const history = createHistoryHandlers(env)
+  const health = createHealthHandler(env)
   const proxy = buildViteProxy(env)
 
   proxy['/api/antares'].configure = (proxyServer) => {
@@ -39,6 +41,11 @@ export default defineConfig(({ mode }) => {
 
   // Middlewares das rotas do histórico, compartilhados entre dev e preview.
   const historyMiddlewares = (server) => {
+    // /healthz no dev: mostra qual driver de histórico está ativo. É o mesmo
+    // handler da produção, para que a verificação do README valha nos dois.
+    server.middlewares.use('/healthz', (req, res, next) =>
+      req.method === 'GET' ? health(req, res) : next(),
+    )
     server.middlewares.use('/api/collect', (req, res, next) =>
       req.method === 'POST' ? history.collect(req, res) : next(),
     )

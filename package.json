@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "test": "node --test",
+    "verify:db": "node --env-file=.env scripts/verify-history-db.mjs",
     "preview": "vite preview",
     "start": "node server/index.js"
   },

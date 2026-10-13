@@ -10,8 +10,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { proxyRoutes } from '../shared/proxyRoutes.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
+import { createHealthHandler } from '../shared/health.js'
 import { createHistoryHandlers } from '../shared/history/routes.js'
-import { getHistoryConfig, getRetentionConfig } from '../shared/history/metricStore.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '..', 'dist')
@@ -20,31 +20,13 @@ const PORT = process.env.PORT || 5173
 
 // Chaves consumidas apenas pelo servidor (nunca chegam ao cliente).
 const ANTARES_API_KEY = process.env.ANTARES_API_KEY || ''
-const WAZE_FEED_URL = process.env.WAZE_FEED_URL || ''
 const CORIO_USERNAME = process.env.CORIO_EVENTS_USERNAME || 'APIOpenedEvent'
 const CORIO_PASSWORD = process.env.CORIO_EVENTS_PASSWORD || '12345'
 
 const app = express()
 app.disable('x-powered-by')
 
-app.get('/healthz', (_req, res) => {
-  const history = getHistoryConfig(process.env)
-  const retention = getRetentionConfig(process.env)
-  res.json({
-    status: 'ok',
-    antaresKeyConfigured: Boolean(ANTARES_API_KEY),
-    wazeFeedConfigured: Boolean(WAZE_FEED_URL),
-    // Diagnóstico do histórico: sem DATABASE_URL a coleta grava em arquivo, que
-    // NÃO sobrevive a deploy em hospedagem com disco efêmero.
-    history: {
-      driver: history.driver,
-      persistent: history.driver === 'postgres',
-      collectSecretConfigured: Boolean(process.env.COLLECT_SECRET),
-      collectScheduleEndpoint: '/api/collect',
-      retentionDays: retention.enabled ? retention.days : null,
-    },
-  })
-})
+app.get('/healthz', createHealthHandler(process.env))
 
 // Feed do Waze: o token do parceiro fica só no servidor (a URL nunca chega ao
 // navegador) e o cache evita baixar ~1 MB por visitante a cada polling.

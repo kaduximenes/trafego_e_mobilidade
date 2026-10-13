@@ -315,6 +315,37 @@ describe('driver Postgres: estado por entidade', () => {
     // Listas vazias não geram SQL inválido.
     assert.equal(await store.insertStateChanges('2026-08-03T10:00:00.000Z', []), 0)
   })
+
+  it('mantém a ordem de inserção dentro de um mesmo instante', async () => {
+    const { store } = await createMemoryStore()
+
+    // Um lote usa um único `changedAt` para todas as linhas. Como a consulta
+    // ordena por changed_at com LIMIT, sem desempate a ordem (e quais linhas
+    // sobrevivem ao limite) seria arbitrária. O `id` do bigserial é o desempate.
+    await store.insertStateChanges('2026-08-03T10:15:00.000Z', [
+      { entity: 'semaforos', entityId: 'P1', fromState: 'a', toState: 'b' },
+      { entity: 'semaforos', entityId: 'P2', fromState: 'a', toState: 'b' },
+      { entity: 'semaforos', entityId: 'P3', fromState: 'a', toState: 'b' },
+    ])
+
+    const all = await store.queryStateChanges({ from: '2026-08-03T00:00:00.000Z', to: '2026-08-03T23:59:59.000Z' })
+    assert.deepEqual(
+      all.map((item) => item.entityId),
+      ['P1', 'P2', 'P3'],
+    )
+
+    // Com o limite igual ao número de linhas do mesmo instante, a ordem tem de
+    // continuar determinística.
+    const limited = await store.queryStateChanges({
+      from: '2026-08-03T00:00:00.000Z',
+      to: '2026-08-03T23:59:59.000Z',
+      limit: 2,
+    })
+    assert.deepEqual(
+      limited.map((item) => item.entityId),
+      ['P1', 'P2'],
+    )
+  })
 })
 
 describe('driver Postgres: seleção pelo caminho de configuração', () => {

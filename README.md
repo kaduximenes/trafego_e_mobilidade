@@ -113,23 +113,34 @@ duplicar o mesmo segredo só porque o consumidor mudou.
 npm test        # suíte do domínio, coletor, store e rotas
 npm run lint    # oxlint
 npm run build   # build de produção
+npm run verify:db   # SQL de produção contra o Postgres real do .env
 ```
 
-O driver Postgres é exercitado com SQL de verdade: `shared/history/postgresStore.test.js`
-roda os mesmos comandos usados em produção contra um Postgres em memória
-(`pg-mem`, dependência de desenvolvimento). Isso pega nomes de coluna, casts e
-sintaxe inválidos, que de outra forma só apareceriam no primeiro deploy com
-`DATABASE_URL` definido.
+`npm run verify:db` é o teste que a suíte **não** consegue fazer: aponta para o
+banco configurado em `DATABASE_URL` e executa os mesmos comandos de produção
+(criação de schema, upsert de métricas, frame com `jsonb`/`text[]`, ciclo de vida
+das ocorrências, transições de estado e poda). Use antes de confiar em um banco
+novo — por exemplo ao migrar de serviço ou trocar de projeto. Ele usa marcadores
+próprios e apaga o que criou, sem tocar nos dados coletados.
 
-Duas ressalvas conhecidas do emulador, ambas contornadas nos testes:
+O driver Postgres também é exercitado com SQL de verdade em `npm test`:
+`shared/history/postgresStore.test.js` roda os mesmos comandos contra um Postgres
+em memória (`pg-mem`, dependência de desenvolvimento). Isso pega nomes de coluna,
+casts e sintaxe inválidos, que de outra forma só apareceriam no primeiro deploy
+com `DATABASE_URL` definido.
+
+Duas limitações conhecidas do emulador, ambas contornadas nos testes e conferidas
+depois contra um Postgres real (Neon):
 
 - ele não mantém um índice parcial após `UPDATE`, então o índice
   `occurrence_open_idx` é removido dentro do teste que filtra ocorrências
-  encerradas (no Postgres real o índice é correto e serve justamente o filtro de
-  ocorrências abertas);
+  encerradas. No Postgres real o índice é correto e serve justamente o filtro de
+  ocorrências abertas — comportamento confirmado executando o mesmo SQL contra o
+  Neon, onde `open=false` encontra a ocorrência encerrada;
 - ele rejeita `CREATE TABLE IF NOT EXISTS` na segunda execução, então a
-  idempotência de `ensureSchema` é garantida pela semântica padrão do Postgres,
-  não por teste.
+  idempotência de `ensureSchema` não é exercitada pela suíte. Foi verificada
+  manualmente contra o Neon, executando `ensureSchema` três vezes seguidas sem
+  erro.
 
 ## Produção
 
@@ -150,6 +161,33 @@ O deploy é descrito em `render.yaml`. Três pontos exigem atenção:
    > escreve a cada 15 minutos, o que conta como atividade.
 
    Confirme em `/healthz`, que reporta `history.persistent` e `retentionDays`.
+   O endpoint existe também no `npm run dev` (mesmo handler), então dá para
+   validar o banco antes de subir qualquer deploy.
+
+   Passo a passo:
+
+   1. Crie o projeto no Neon (plano free, sem cartão) e copie a connection string.
+      Prefira o host **pooled** (com sufixo `-pooler`) e `sslmode=verify-full`.
+   2. Ponha em `.env` — que é ignorado pelo git, então o segredo não é versionado:
+
+      ```bash
+      DATABASE_URL=postgresql://usuario:senha@ep-xxx-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=verify-full
+      COLLECT_SECRET=<32 bytes aleatórios>
+      ```
+
+   3. Suba o servidor e confirme antes de seguir:
+
+      ```bash
+      npm run dev
+      curl http://localhost:5173/healthz
+      # history: { driver: "postgres", persistent: true, ... }
+
+      curl -X POST -H "x-collect-secret: SEU_SEGREDO" http://localhost:5173/api/collect
+      curl http://localhost:5173/api/snapshot   # available: true, com o frame coletado
+      ```
+
+   As tabelas são criadas no boot por `ensureSchema`, de forma idempotente — não
+   é preciso rodar migração à mão.
 
 2. **A coleta é agendada externamente.** No plano gratuito do Render o web service
    hiberna após alguns minutos sem acesso, então um `setInterval` dentro do
