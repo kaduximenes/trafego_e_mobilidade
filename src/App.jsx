@@ -20,6 +20,7 @@ import { CongestionKpi } from './components/waze/CongestionKpi'
 import { WazeTopJams } from './components/waze/WazeTopJams'
 import { WazeAlertsPanel } from './components/waze/WazeAlertsPanel'
 import { CAMERA_STATUS } from './services/tixxi'
+import { BASEMAPS, getBasemap } from './constants/basemaps'
 import { formatDecimal, formatNumber } from './utils/format'
 
 const FAILURE_FEED_LIMIT = 12
@@ -98,15 +99,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   const topFailureMax = Math.max(...topFailures.map((fault) => fault.value), 1)
   const failures = (semaforos.failures || []).slice(0, FAILURE_FEED_LIMIT)
   const activeTabSource = { occurrences, traffic: waze, signals: semaforos, cameras }[activeTab] || occurrences
-  const tileLayer = mapLayer === 'dark'
-    ? {
-        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      }
-    : {
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }
+  const basemap = getBasemap(mapLayer)
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
@@ -128,9 +121,9 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
                 <div>
                   <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Layers size={13} /> Tipo de mapa</div>
                   <div className="space-y-1.5">
-                    {[['street', 'Rua'], ['dark', 'Escuro']].map(([value, label]) => (
-                      <button key={value} type="button" aria-pressed={mapLayer === value} onClick={() => setMapLayer(value)} className={`w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${mapLayer === value ? 'bg-amber-400/90 text-slate-900' : 'bg-white/30 text-slate-600 hover:bg-white/55'}`}>
-                        {label}
+                    {BASEMAPS.map((basemapOption) => (
+                      <button key={basemapOption.id} type="button" aria-pressed={mapLayer === basemapOption.id} onClick={() => setMapLayer(basemapOption.id)} className={`w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${mapLayer === basemapOption.id ? 'bg-amber-400/90 text-slate-900' : 'bg-white/30 text-slate-600 hover:bg-white/55'}`}>
+                        {basemapOption.label}
                       </button>
                     ))}
                   </div>
@@ -187,9 +180,10 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
             className="h-full min-h-[650px] w-full"
           >
             <TileLayer
-              key={mapLayer}
-              attribution={tileLayer.attribution}
-              url={tileLayer.url}
+              key={basemap.id}
+              url={basemap.url}
+              attribution={basemap.attribution}
+              maxZoom={basemap.maxZoom}
             />
             <MapFocus occurrence={selectedEvent} />
             {showWazeCongestion && congestedJams.map((jam) => (
