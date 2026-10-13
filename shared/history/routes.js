@@ -2,24 +2,29 @@
 // (Express) e o de desenvolvimento (Vite), para que dev e produção tenham o
 // mesmo comportamento.
 //
-// POST /api/collect   → dispara uma coleta, grava métricas e o frame do momento.
-// GET  /api/metrics   → lê o intervalo pedido (from, to, source, limit).
-// GET  /api/snapshot  → estado do mapa em um instante (?at=), para o replay.
-// GET  /api/frames    → instantes de frame disponíveis na janela (linha do tempo).
+// POST /api/collect        → coleta, grava métricas, frame e as tabelas derivadas
+//                            (ciclo de vida das ocorrências e transições de estado).
+// GET  /api/metrics        → série temporal (from, to, source, limit).
+// GET  /api/snapshot       → estado do mapa em um instante (?at=), para o replay.
+// GET  /api/frames         → instantes de frame disponíveis (linha do tempo).
+// GET  /api/occurrences    → histórico das ocorrências com duração e desfecho.
+// GET  /api/state-changes  → transições de estado dos controladores e câmeras.
 //
 // O POST é protegido por COLLECT_SECRET: sem ele, coletar fica aberto e qualquer
 // visitante poderia encher o banco. A comparação é feita em tempo constante para
 // não vazar o segredo por diferença de tempo de resposta.
 
 import { timingSafeEqual } from 'node:crypto'
-import { createMetricStore, METRIC_SOURCES } from './metricStore.js'
-import { buildFramePayload, collectAll } from './collector.js'
+import { createMetricStore, METRIC_SOURCES, TRACKED_ENTITIES, diffEntities } from './metricStore.js'
+import { buildFramePayload, collectAll, entityStatesOf, occurrenceRecords } from './collector.js'
 
 const DEFAULT_WINDOW_HOURS = 24
 const MAX_WINDOW_HOURS = 24 * 31
 const MAX_LIMIT = 20000
 const DEFAULT_LIMIT = 2000
 const DEFAULT_FRAME_LIMIT = 5000
+const DEFAULT_OCCURRENCE_LIMIT = 1000
+const DEFAULT_CHANGE_LIMIT = 500
 
 function safeEqual(a, b) {
   const left = Buffer.from(String(a ?? ''))
@@ -54,6 +59,64 @@ function clampWindow(from, to) {
   const maxMs = MAX_WINDOW_HOURS * 60 * 60 * 1000
   if (to - from <= maxMs) return { from, to }
   return { from: new Date(to.getTime() - maxMs), to }
+}
+
+// Atualiza as tabelas derivadas a partir da coleta. Só toca em uma fonte quando
+// ela foi coletada com sucesso: se a API falhou, não podemos concluir que uma
+// ocorrência fechou ou que um controlador mudou de estado — fecharíamos 30
+// ocorrências por causa de um timeout.
+async function syncDerivedTables(store, result) {
+  const bySource = Object.fromEntries(result.samples.map((sample) => [sample.source, sample]))
+  const summary = { occurrences: null, stateChanges: 0 }
+
+  const occurrences = bySource.ocorrencias
+  if (occurrences?.ok) {
+    const current = occurrenceRecords(occurrences.data)
+    const previousOpenIds = await store.openEventIds()
+
+    const previous = previousOpenIds.map((id) => ({ id }))
+    const { closed, opened } = diffEntities({
+      current,
+      previous,
+      idOf: (item) => item.id,
+      stateOf: () => null,
+    })
+
+    await store.syncOccurrences(result.collectedAt, current, closed)
+    summary.occurrences = { seen: current.length, opened: opened.length, closed: closed.length }
+  }
+
+  for (const entity of TRACKED_ENTITIES) {
+    const sample = bySource[entity]
+    if (!sample?.ok) continue
+
+    const current = entityStatesOf(entity, sample.data)
+    const previous = await store.getEntityStates(entity)
+
+    const { changed } = diffEntities({
+      current,
+      previous,
+      idOf: (item) => item.entityId,
+      stateOf: (item) => item.state,
+    })
+
+    if (changed.length) {
+      await store.insertStateChanges(
+        result.collectedAt,
+        changed.map((change) => ({
+          entity,
+          entityId: change.item.entityId,
+          fromState: change.fromState,
+          toState: change.toState,
+        })),
+      )
+      summary.stateChanges += changed.length
+    }
+
+    await store.setEntityStates(entity, current, result.collectedAt)
+  }
+
+  return summary
 }
 
 // `store` é opcional: nos testes e em /api/metrics quando não há banco, o
@@ -99,6 +162,8 @@ export function createHistoryHandlers(env = {}) {
           sourcesFailed,
         })
 
+        const lifecycle = await syncDerivedTables(store, result)
+
         res.setHeader('Content-Type', 'application/json')
         res.end(
           JSON.stringify({
@@ -108,6 +173,7 @@ export function createHistoryHandlers(env = {}) {
             driver: store.name,
             ok: result.ok,
             failed: sourcesFailed,
+            lifecycle,
             sources: result.samples.map((sample) => ({
               source: sample.source,
               ok: sample.ok,
@@ -195,8 +261,96 @@ export function createHistoryHandlers(env = {}) {
       }
     },
 
-    // Instantes de frame disponíveis: é o que a barra de linha do tempo usa para
-    // saber onde há dados e onde há buraco.
+    // Histórico das ocorrências: o que abriu, o que fechou e quanto durou. É a
+    // análise que não existia: o endpoint ao vivo só mostra o agora.
+    async occurrences(req, res) {
+      try {
+        const url = new URL(req.url || '/', 'http://localhost')
+        const to = parseDate(url.searchParams.get('to'), new Date())
+        const from = parseDate(
+          url.searchParams.get('from'),
+          new Date(to.getTime() - DEFAULT_WINDOW_HOURS * 60 * 60 * 1000),
+        )
+        const window = clampWindow(from, to)
+
+        const openParam = url.searchParams.get('open')
+        const open = openParam === 'true' ? true : openParam === 'false' ? false : null
+
+        const limitParam = Number(url.searchParams.get('limit'))
+        const limit =
+          Number.isFinite(limitParam) && limitParam > 0
+            ? Math.min(Math.floor(limitParam), MAX_LIMIT)
+            : DEFAULT_OCCURRENCE_LIMIT
+
+        const store = await getStore()
+        const items = await store.listOccurrences({ ...window, open, limit })
+
+        const closed = items.filter((item) => item.closedAt)
+        const avgDurationMs = closed.length
+          ? closed.reduce((sum, item) => sum + item.durationMs, 0) / closed.length
+          : null
+
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            from: window.from.toISOString(),
+            to: window.to.toISOString(),
+            open,
+            count: items.length,
+            openCount: items.filter((item) => !item.closedAt).length,
+            closedCount: closed.length,
+            avgDurationMs,
+            items,
+          }),
+        )
+      } catch (err) {
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ error: err?.message || 'Falha ao ler as ocorrências.' }))
+      }
+    },
+
+    // Transições de estado observadas: quando cada controlador ou câmera mudou
+    // de estado entre duas coletas.
+    async stateChanges(req, res) {
+      try {
+        const url = new URL(req.url || '/', 'http://localhost')
+        const to = parseDate(url.searchParams.get('to'), new Date())
+        const from = parseDate(
+          url.searchParams.get('from'),
+          new Date(to.getTime() - DEFAULT_WINDOW_HOURS * 60 * 60 * 1000),
+        )
+        const window = clampWindow(from, to)
+
+        const entityParam = url.searchParams.get('entity')
+        const entity = TRACKED_ENTITIES.includes(entityParam) ? entityParam : null
+
+        const limitParam = Number(url.searchParams.get('limit'))
+        const limit =
+          Number.isFinite(limitParam) && limitParam > 0
+            ? Math.min(Math.floor(limitParam), MAX_LIMIT)
+            : DEFAULT_CHANGE_LIMIT
+
+        const store = await getStore()
+        const changes = await store.queryStateChanges({ ...window, entity, limit })
+
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            from: window.from.toISOString(),
+            to: window.to.toISOString(),
+            entity,
+            count: changes.length,
+            changes,
+          }),
+        )
+      } catch (err) {
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ error: err?.message || 'Falha ao ler as mudanças de estado.' }))
+      }
+    },
+
     async frames(req, res) {
       try {
         const url = new URL(req.url || '/', 'http://localhost')

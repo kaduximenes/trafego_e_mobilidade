@@ -25,7 +25,8 @@ import { aggregateTraffic, normalizeAlerts, normalizeJams } from '../domain/waze
 import { resolveEventType } from '../domain/eventTypeMap.js'
 import { collectAll, collectOccurrences, collectTrafficLights } from './collector.js'
 import { buildFramePayload, occurrencesFrame, wazeFrame, trafficLightsFrame, camerasFrame } from './collector.js'
-import { createFileStore, pickFrameAt } from './metricStore.js'
+import { entityStatesOf, occurrenceRecords } from './collector.js'
+import { createFileStore, diffEntities, pickFrameAt } from './metricStore.js'
 import { createHistoryHandlers, isCollectAuthorized } from './routes.js'
 
 // ------------------------------------------------------------------ domínio --
@@ -532,13 +533,20 @@ describe('payload do frame', () => {
     assert.deepEqual(frame[0].flags, ['Sem comunicação'])
   })
 
-  it('inclui só câmeras geolocalizadas', () => {
+  it('inclui só câmeras indisponíveis e geolocalizadas', () => {
     const frame = camerasFrame([
       { id: 1, code: 'C1', statusRaw: '0', status: { key: 'online' }, latitude: -22.9, longitude: -43.2 },
-      { id: 2, code: 'C2', statusRaw: 'A', status: { key: 'maintenance' }, latitude: null, longitude: null },
+      { id: 2, code: 'C2', statusRaw: 'A', status: { key: 'maintenance' }, latitude: -22.9, longitude: -43.2 },
+      { id: 3, code: 'C3', statusRaw: '3', status: { key: 'offline' }, latitude: null, longitude: null },
     ])
-    assert.equal(frame.length, 1)
-    assert.equal(frame[0].code, 'C1')
+
+    // A operacional (C1) não entra: são milhares e o mapa não as desenha.
+    assert.deepEqual(frame.map((camera) => camera.code), ['C2'])
+    assert.equal(frame[0].statusLabel, undefined)
+    assert.equal(frame[0].statusKey, 'maintenance')
+
+    // Sem câmeras indisponíveis o frame é vazio, não nulo.
+    assert.deepEqual(camerasFrame([]), [])
   })
 
   it('monta o payload consolidado com fonte faltante vazia', () => {
@@ -553,6 +561,191 @@ describe('payload do frame', () => {
     assert.deepEqual(payload.trafficLights, [])
     assert.deepEqual(payload.cameras, [])
     assert.deepEqual(payload.waze, { jams: [], alerts: [] })
+  })
+})
+
+// ------------------------------------------------------------- ciclo de vida --
+
+describe('diff de entidades', () => {
+  const idOf = (item) => item.id
+  const stateOf = (item) => item.state
+
+  it('detecta aberturas, fechamentos e mudanças de estado', () => {
+    const previous = [
+      { id: 'A', state: 'normal' },
+      { id: 'B', state: 'offline' },
+      { id: 'C', state: 'alarm' },
+    ]
+    const current = [
+      { id: 'A', state: 'normal' },
+      { id: 'B', state: 'flashing' },
+      { id: 'D', state: 'offline' },
+    ]
+
+    const { opened, closed, changed } = diffEntities({ current, previous, idOf, stateOf })
+
+    assert.deepEqual(opened.map(idOf), ['D'])
+    assert.deepEqual(closed.map(idOf), ['C'])
+    assert.equal(changed.length, 1)
+    assert.equal(changed[0].item.id, 'B')
+    assert.equal(changed[0].fromState, 'offline')
+    assert.equal(changed[0].toState, 'flashing')
+  })
+
+  it('trata listas vazias', () => {
+    const empty = diffEntities({ current: [], previous: [], idOf, stateOf })
+    assert.deepEqual(empty.opened, [])
+    assert.deepEqual(empty.closed, [])
+    assert.deepEqual(empty.changed, [])
+
+    const firstRun = diffEntities({ current: [{ id: 'A', state: 'ok' }], previous: [], idOf, stateOf })
+    assert.equal(firstRun.opened.length, 1)
+    assert.equal(firstRun.changed.length, 0)
+
+    const everythingClosed = diffEntities({ current: [], previous: [{ id: 'A', state: 'ok' }], idOf, stateOf })
+    assert.equal(everythingClosed.closed.length, 1)
+  })
+})
+
+describe('store de arquivo: ciclo de vida', () => {
+  let dir
+
+  before(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-lifecycle-'))
+  })
+
+  after(async () => {
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('registra abertura, mantém last_seen e fecha por ausência', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    const a = { id: 'A', severity: 'high', typeKey: 'pop27', type: 'Alagamento', location: 'Av. Brasil', coordinates: [-22.9, -43.2] }
+    const b = { id: 'B', severity: 'low', typeKey: 'pop23', type: 'Obra', location: 'Centro', coordinates: null }
+
+    await store.syncOccurrences('2026-08-03T10:00:00.000Z', [a, b], [])
+    assert.deepEqual((await store.openEventIds()).sort(), ['A', 'B'])
+
+    // Na segunda leitura só A continua aberta.
+    await store.syncOccurrences('2026-08-03T10:15:00.000Z', [a], [{ id: 'B' }])
+    assert.deepEqual(await store.openEventIds(), ['A'])
+
+    const items = await store.listOccurrences({
+      from: '2026-08-03T00:00:00.000Z',
+      to: '2026-08-03T23:59:59.000Z',
+    })
+    const byId = Object.fromEntries(items.map((item) => [item.id, item]))
+
+    assert.equal(byId.A.firstSeen, '2026-08-03T10:00:00.000Z')
+    assert.equal(byId.A.lastSeen, '2026-08-03T10:15:00.000Z')
+    assert.equal(byId.A.closedAt, null)
+    assert.equal(byId.B.closedAt, '2026-08-03T10:15:00.000Z')
+    // Duração de B: 15 minutos entre abrir e fechar.
+    assert.equal(byId.B.durationMs, 15 * 60 * 1000)
+    assert.deepEqual(byId.A.coordinates?.length ?? undefined, undefined)
+  })
+
+  it('filtra por situação (aberta/fechada)', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    const open = await store.listOccurrences({
+      from: '2026-08-03T00:00:00.000Z',
+      to: '2026-08-03T23:59:59.000Z',
+      open: true,
+    })
+    assert.deepEqual(open.map((item) => item.id), ['A'])
+
+    const closed = await store.listOccurrences({
+      from: '2026-08-03T00:00:00.000Z',
+      to: '2026-08-03T23:59:59.000Z',
+      open: false,
+    })
+    assert.deepEqual(closed.map((item) => item.id), ['B'])
+  })
+
+  it('guarda e devolve o estado corrente por entidade', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    await store.setEntityStates(
+      'semaforos',
+      [{ entityId: 'C1', state: 'normal' }, { entityId: 'C2', state: 'offline' }],
+      '2026-08-03T10:00:00.000Z',
+    )
+    // Uma transição posterior deve prevalecer sobre a anterior.
+    await store.setEntityStates('semaforos', [{ entityId: 'C2', state: 'alarm' }], '2026-08-03T10:15:00.000Z')
+
+    const states = await store.getEntityStates('semaforos')
+    const byId = Object.fromEntries(states.map((item) => [item.entityId, item.state]))
+    assert.equal(byId.C1, 'normal')
+    assert.equal(byId.C2, 'alarm')
+
+    // Entidade distinta tem estado independente.
+    assert.deepEqual(await store.getEntityStates('cameras'), [])
+  })
+
+  it('registra e consulta mudanças de estado', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    await store.insertStateChanges('2026-08-03T10:15:00.000Z', [
+      { entity: 'semaforos', entityId: 'C2', fromState: 'offline', toState: 'alarm' },
+      { entity: 'cameras', entityId: '7', fromState: 'online', toState: 'offline' },
+    ])
+
+    const all = await store.queryStateChanges({
+      from: '2026-08-03T00:00:00.000Z',
+      to: '2026-08-03T23:59:59.000Z',
+    })
+    assert.equal(all.length, 2)
+
+    const onlyLights = await store.queryStateChanges({
+      from: '2026-08-03T00:00:00.000Z',
+      to: '2026-08-03T23:59:59.000Z',
+      entity: 'semaforos',
+    })
+    assert.equal(onlyLights.length, 1)
+    assert.equal(onlyLights[0].fromState, 'offline')
+    assert.equal(onlyLights[0].toState, 'alarm')
+  })
+})
+
+describe('coletor: dados para as tabelas derivadas', () => {
+  it('extrai o estado observado por entidade', () => {
+    assert.deepEqual(
+      entityStatesOf('semaforos', [{ id: 'C1', groupKey: 'normal' }, { id: 'C2', groupKey: 'offline' }]),
+      [{ entityId: 'C1', state: 'normal' }, { entityId: 'C2', state: 'offline' }],
+    )
+    assert.deepEqual(
+      entityStatesOf('cameras', [{ id: 7, status: { key: 'online' } }]),
+      [{ entityId: '7', state: 'online' }],
+    )
+    assert.deepEqual(entityStatesOf('waze', [{ id: 'j1' }]), [])
+  })
+
+  it('normaliza ocorrências para o registro persistido', () => {
+    const records = occurrenceRecords([
+      {
+        id: 'A1',
+        type: 'Alagamento',
+        typeKey: 'pop27',
+        severity: 'high',
+        location: 'Av. Brasil',
+        coordinates: { latitude: -22.9, longitude: -43.2 },
+      },
+    ])
+
+    assert.deepEqual(records[0], {
+      id: 'A1',
+      severity: 'high',
+      typeKey: 'pop27',
+      type: 'Alagamento',
+      location: 'Av. Brasil',
+      coordinates: [-22.9, -43.2],
+    })
   })
 })
 
@@ -699,5 +892,108 @@ describe('rotas do histórico', () => {
     assert.ok(res.body.count >= 1)
     assert.ok(res.body.frames.every((f) => Array.isArray(f.sourcesFailed)))
     assert.ok(res.body.frames[0].collectedAt)
+  })
+
+  it('registra o ciclo de vida das ocorrências na coleta', async () => {
+    const dir2 = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-life-'))
+    const handlers = createHistoryHandlers({ ...env, HISTORY_DIR: dir2 })
+
+    globalThis.fetch = stubFetch(FULL_ROUTES)
+    const first = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, first)
+
+    // A primeira coleta vê 2 ocorrências (A1 e A2), nenhuma fechada.
+    assert.equal(first.body.lifecycle.occurrences.seen, 2)
+    assert.equal(first.body.lifecycle.occurrences.opened, 2)
+    assert.equal(first.body.lifecycle.occurrences.closed, 0)
+
+    // A segunda traz só A1: A2 desapareceu e deve ser fechada.
+    globalThis.fetch = stubFetch({
+      ...FULL_ROUTES,
+      '/OpenedEvents': {
+        body: { openedEvents: [{ EventId: 'A1', AgencyEventTypeCode: 'POP27', CreatedDate: '2026-08-01T10:00:00Z' }] },
+      },
+    })
+    const second = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, second)
+    assert.equal(second.body.lifecycle.occurrences.seen, 1)
+    assert.equal(second.body.lifecycle.occurrences.closed, 1)
+
+    const list = createRes()
+    await handlers.occurrences(
+      { url: `/api/occurrences?from=${encodeURIComponent(new Date(Date.now() - 3600000).toISOString())}` },
+      list,
+    )
+    assert.equal(list.body.count, 2)
+    assert.equal(list.body.openCount, 1)
+    assert.equal(list.body.closedCount, 1)
+    assert.ok(list.body.avgDurationMs >= 0)
+
+    await fs.rm(dir2, { recursive: true, force: true })
+  })
+
+  it('NÃO fecha ocorrências quando a fonte falha', async () => {
+    const dir3 = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-fail-'))
+    const handlers = createHistoryHandlers({ ...env, HISTORY_DIR: dir3 })
+
+    // Primeira coleta bem-sucedida: duas ocorrências abertas.
+    globalThis.fetch = stubFetch(FULL_ROUTES)
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, createRes())
+
+    // Segunda coleta com o COR indisponível: nada pode ser concluído.
+    globalThis.fetch = stubFetch({ ...FULL_ROUTES, '/OpenedEvents': { status: 500, body: {} } })
+    const failed = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, failed)
+
+    assert.equal(failed.body.lifecycle.occurrences, null)
+
+    const list = createRes()
+    await handlers.occurrences(
+      { url: `/api/occurrences?from=${encodeURIComponent(new Date(Date.now() - 3600000).toISOString())}&open=true` },
+      list,
+    )
+    // As duas continuam abertas: uma falha de rede não pode parecer encerramento.
+    assert.equal(list.body.openCount, 2)
+
+    await fs.rm(dir3, { recursive: true, force: true })
+  })
+
+  it('registra transições de estado dos controladores entre coletas', async () => {
+    const dir4 = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-states-'))
+    const handlers = createHistoryHandlers({ ...env, HISTORY_DIR: dir4 })
+
+    globalThis.fetch = stubFetch(FULL_ROUTES)
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, createRes())
+
+    // C2 sai de "sem comunicação" para "OK" e C1 continua OK.
+    globalThis.fetch = stubFetch({
+      ...FULL_ROUTES,
+      'controlador/estado': {
+        body: [{ controlador: 'C1', estado: 'OK' }, { controlador: 'C2', estado: 'OK' }],
+      },
+    })
+    const res = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, res)
+
+    assert.equal(res.body.lifecycle.stateChanges, 1)
+
+    const changes = createRes()
+    await handlers.stateChanges(
+      { url: `/api/state-changes?entity=semaforos&from=${encodeURIComponent(new Date(Date.now() - 3600000).toISOString())}` },
+      changes,
+    )
+    assert.equal(changes.body.count, 1)
+    assert.equal(changes.body.changes[0].entityId, 'C2')
+    assert.equal(changes.body.changes[0].fromState, 'offline')
+    assert.equal(changes.body.changes[0].toState, 'normal')
+
+    await fs.rm(dir4, { recursive: true, force: true })
+  })
+
+  it('ignora entidade desconhecida em state-changes', async () => {
+    const handlers = createHistoryHandlers(env)
+    const res = createRes()
+    await handlers.stateChanges({ url: '/api/state-changes?entity=inventado' }, res)
+    assert.equal(res.body.entity, null)
   })
 })

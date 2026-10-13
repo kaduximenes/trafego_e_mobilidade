@@ -40,6 +40,9 @@ const FRAME_JAM_LIMIT = 150
 // Os controladores plotáveis são centenas (o grupo "sem comunicação" domina);
 // 120 já cobrem o mapa sem repetir o feed inteiro.
 const FRAME_CONTROLLER_LIMIT = 120
+// Câmeras indisponíveis: 245 em manutenção + 141 desligadas + 113 sem
+// comunicação + 101 intermitentes. 300 cobre o conjunto com folga.
+const FRAME_CAMERA_LIMIT = 300
 // As geometrias do Waze são o que mais pesa no frame. 30 pontos por trecho já
 // desenham a via com fidelidade suficiente em zoom de cidade, e 5 casas decimais
 // (~1 m) não têm perda visível.
@@ -304,19 +307,28 @@ export async function collectTrafficLights(env = {}) {
 
 // ----------------------------------------------------------------- Câmeras --
 
+// Credenciais da Tixxi para o coletor. O `.env` de desenvolvimento define as
+// variáveis com prefixo VITE_ (consumidas pelo bundle ao chamar a API pelo
+// navegador); aqui aceitamos as duas formas para não obrigar a duplicar o mesmo
+// segredo só porque o consumidor mudou. Em produção prevalecem as sem prefixo.
+function tixxiCredentials(env = {}) {
+  return {
+    apiKey: env.TIXXI_API_KEY || env.VITE_TIXXI_API_KEY || '',
+    email: env.TIXXI_EMAIL || env.VITE_TIXXI_EMAIL || '',
+    password: env.TIXXI_PASSWORD || env.VITE_TIXXI_PASSWORD || '',
+  }
+}
+
 export async function fetchCameras(env = {}) {
   const base = env.TIXXI_TARGET || 'http://10.50.3.96:8000'
+  const { apiKey, email, password } = tixxiCredentials(env)
 
   // A Tixxi roda na rede interna do COR: fora dela a coleta falha e a amostra
   // fica registrada como indisponível, sem derrubar as outras fontes.
   const login = await requestJson(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: env.TIXXI_API_KEY || '',
-      email: env.TIXXI_EMAIL || '',
-      password: env.TIXXI_PASSWORD || '',
-    }),
+    body: JSON.stringify({ api_key: apiKey, email, password }),
   })
 
   if (!login?.success || !login?.access_token) {
@@ -346,9 +358,16 @@ export function camerasMetrics(cameras) {
   }
 }
 
+// Só as câmeras indisponíveis entram no frame: as operacionais são 6 mil e o
+// mapa não as desenha, então guardá-las multiplicaria o frame por 10 sem uso.
+// O total e a disponibilidade ficam nas métricas.
 export function camerasFrame(cameras) {
   return cameras
-    .filter((camera) => camera.latitude !== null && camera.longitude !== null)
+    .filter(
+      (camera) =>
+        camera.statusRaw !== '0' && camera.latitude !== null && camera.longitude !== null,
+    )
+    .slice(0, FRAME_CAMERA_LIMIT)
     .map((camera) => ({
       id: camera.id,
       code: camera.code,
@@ -390,6 +409,9 @@ export async function collectAll(env = {}, { now = new Date() } = {}) {
           error: null,
           metrics: metrics(data),
           frame: frame(data),
+          // Os dados normalizados ficam disponíveis para as tabelas derivadas
+          // (ciclo de vida das ocorrências e transições de estado).
+          data,
           count: Array.isArray(data) ? data.length : null,
         }
       } catch (err) {
@@ -399,6 +421,7 @@ export async function collectAll(env = {}, { now = new Date() } = {}) {
           error: err?.message || 'Falha desconhecida na coleta.',
           metrics: {},
           frame: null,
+          data: null,
           count: null,
         }
       }
@@ -424,4 +447,32 @@ export function buildFramePayload(samples) {
     trafficLights: bySource.semaforos?.frame || [],
     cameras: bySource.cameras?.frame || [],
   }
+}
+
+// ------------------------------------------------------- Ciclo de vida (fatia 3)
+
+// Lista de entidades no formato aceito pelo diff do store. O estado observado é
+// o groupKey (semáforos) ou o status normalizado (câmeras): são os valores cuja
+// mudança interessa operacionalmente.
+export function entityStatesOf(source, data) {
+  if (source === 'semaforos') {
+    return data.map((controller) => ({ entityId: controller.id, state: controller.groupKey }))
+  }
+  if (source === 'cameras') {
+    return data.map((camera) => ({ entityId: String(camera.id ?? camera.code), state: camera.status?.key }))
+  }
+  return []
+}
+
+// Normaliza uma ocorrência para o registro persistido, reaproveitando o formato
+// do frame (coordenadas como par).
+export function occurrenceRecords(events) {
+  return occurrencesFrame(events).map((event) => ({
+    id: event.id,
+    severity: event.severity,
+    typeKey: event.typeKey,
+    type: event.type,
+    location: event.location,
+    coordinates: event.coordinates,
+  }))
 }

@@ -51,6 +51,12 @@ export default defineConfig(({ mode }) => {
     server.middlewares.use('/api/frames', (req, res, next) =>
       req.method === 'GET' ? history.frames(req, res) : next(),
     )
+    server.middlewares.use('/api/occurrences', (req, res, next) =>
+      req.method === 'GET' ? history.occurrences(req, res) : next(),
+    )
+    server.middlewares.use('/api/state-changes', (req, res, next) =>
+      req.method === 'GET' ? history.stateChanges(req, res) : next(),
+    )
   }
 
   return {

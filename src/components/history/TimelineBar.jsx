@@ -1,15 +1,6 @@
 import { ChevronLeft, ChevronRight, Clock, Gauge, History, Pause, Play, Radio } from 'lucide-react'
 import { useTimeCursor } from '../../contexts/timeCursorContext'
-
-// Converte um instante em posição (0..1) dentro da janela de frames.
-function positionOf(instant, bounds) {
-  if (!bounds || !instant) return 0
-  const first = new Date(bounds.first).getTime()
-  const last = new Date(bounds.last).getTime()
-  if (last <= first) return 1
-  const at = new Date(instant).getTime()
-  return Math.min(1, Math.max(0, (at - first) / (last - first)))
-}
+import { instantAtPosition, positionOf } from '../../utils/timeline'
 
 function formatInstant(instant) {
   if (!instant) return '—'
@@ -55,11 +46,8 @@ export function TimelineBar() {
   const hasFrames = frameCount > 0
 
   const handleSlider = (event) => {
-    const ratio = Number(event.target.value) / 1000
-    if (!bounds) return
-    const first = new Date(bounds.first).getTime()
-    const last = new Date(bounds.last).getTime()
-    setCursor(new Date(first + (last - first) * ratio).toISOString())
+    const instant = instantAtPosition(Number(event.target.value) / 1000, bounds)
+    if (instant) setCursor(instant)
   }
 
   return (

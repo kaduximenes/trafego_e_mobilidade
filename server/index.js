@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { proxyRoutes } from '../shared/proxyRoutes.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
 import { createHistoryHandlers } from '../shared/history/routes.js'
+import { getHistoryConfig } from '../shared/history/metricStore.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST_DIR = path.resolve(__dirname, '..', 'dist')
@@ -27,10 +28,19 @@ const app = express()
 app.disable('x-powered-by')
 
 app.get('/healthz', (_req, res) => {
+  const history = getHistoryConfig(process.env)
   res.json({
     status: 'ok',
     antaresKeyConfigured: Boolean(ANTARES_API_KEY),
     wazeFeedConfigured: Boolean(WAZE_FEED_URL),
+    // Diagnóstico do histórico: sem DATABASE_URL a coleta grava em arquivo, que
+    // NÃO sobrevive a deploy em hospedagem com disco efêmero.
+    history: {
+      driver: history.driver,
+      persistent: history.driver === 'postgres',
+      collectSecretConfigured: Boolean(process.env.COLLECT_SECRET),
+      collectScheduleEndpoint: '/api/collect',
+    },
   })
 })
 
@@ -47,6 +57,8 @@ app.post('/api/collect', (req, res) => history.collect(req, res))
 app.get('/api/metrics', (req, res) => history.metrics(req, res))
 app.get('/api/snapshot', (req, res) => history.snapshot(req, res))
 app.get('/api/frames', (req, res) => history.frames(req, res))
+app.get('/api/occurrences', (req, res) => history.occurrences(req, res))
+app.get('/api/state-changes', (req, res) => history.stateChanges(req, res))
 
 // Intercepta o Login do COR: o cliente não precisa conhecer as credenciais,
 // elas são injetadas aqui (e nunca entram no bundle do navegador).
