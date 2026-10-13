@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, AlertTriangle, BarChart3, Camera, ChartColumn, ChevronDown, Gauge, Layers, Map as MapIcon, Navigation, PieChart, Radar, RefreshCw, Route, Siren, TrafficCone, Trophy } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Camera, ChartColumn, ChevronDown, Gauge, History, Layers, Map as MapIcon, Navigation, PieChart, Radar, RefreshCw, Route, Siren, TrafficCone, Trophy } from 'lucide-react'
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import { useSemaforos } from './hooks/useSemaforos'
 import { useWazeTraffic } from './hooks/useWazeTraffic'
@@ -14,6 +14,9 @@ import { TrafficLightDonut } from './components/trafficLights/TrafficLightDonut'
 import { FaultBreakdown } from './components/trafficLights/FaultBreakdown'
 import { TrafficLightOccurrences } from './components/trafficLights/TrafficLightOccurrences'
 import { CamerasSection } from './components/cameras/CamerasSection'
+import { TimelineBar } from './components/history/TimelineBar'
+import { TimeCursorProvider } from './contexts/TimeCursorProvider'
+import { useTimeCursor } from './contexts/timeCursorContext'
 import { OccurrenceDashboard } from './components/occurrences/OccurrenceDashboard'
 import { WazeLiveMap } from './components/waze/WazeLiveMap'
 import { CongestionKpi } from './components/waze/CongestionKpi'
@@ -75,8 +78,27 @@ function MapFocus({ occurrence }) {
   return null
 }
 
+// Converte uma ocorrência do frame histórico para o formato que o mapa e o
+// painel já consomem. O frame guarda as coordenadas como par [lat, lon] para
+// ficar compacto; aqui voltamos ao objeto usado ao vivo.
+function frameEventToEvent(frameEvent) {
+  return {
+    ...frameEvent,
+    code: frameEvent.id,
+    coordinates: Array.isArray(frameEvent.coordinates)
+      ? { latitude: frameEvent.coordinates[0], longitude: frameEvent.coordinates[1] }
+      : null,
+  }
+}
+
 function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
-  const feed = occurrences.feed || []
+  const { isHistory, snapshot, loadingSnapshot } = useTimeCursor()
+  // Em modo histórico o mapa e o painel desenham o frame; ao vivo, os dados
+  // em tempo real. É o mesmo pipeline de renderização nos dois casos.
+  const historical = isHistory ? snapshot?.payload : null
+  const feed = historical?.occurrences
+    ? historical.occurrences.map(frameEventToEvent)
+    : occurrences.feed || []
   const mapEvents = feed.filter((event) => event.coordinates)
   const [expandedEventId, setExpandedEventId] = useState(null)
   const [selectedEventId, setSelectedEventId] = useState(null)
@@ -87,10 +109,12 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [severityFilter, setSeverityFilter] = useState(null)
   const incidentCount = feed.length
-  const criticalCount = occurrences.severityCounts?.high?.count || 0
+  const criticalCount = feed.filter((event) => severityKeyOf(event) === 'high').length
   const selectedEvent = mapEvents.find((event) => event.id === selectedEventId) || null
-  const visibleEvents = mapEvents.filter((event) => visibleSeverities.includes(event.severity))
-  const congestedJams = (waze.jams || []).filter((jam) => jam.level >= 3 && jam.coordinates?.length >= 2)
+  const visibleEvents = mapEvents.filter((event) => visibleSeverities.includes(severityKeyOf(event)))
+  const congestedJams = (historical ? historical.waze?.jams || [] : waze.jams || []).filter(
+    (jam) => jam.level >= 3 && jam.coordinates?.length >= 2,
+  )
   const sortedFeed = [...feed].sort((a, b) => {
     const rank = { high: 0, medium: 1, low: 2 }
     return (rank[a.severity] ?? 1) - (rank[b.severity] ?? 1) || b.timestamp - a.timestamp
@@ -282,6 +306,16 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
             <span className="mr-3"><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />Média</span>
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />Baixa</span>
           </div>
+
+          {/* Em modo histórico o mapa mostra o passado: o aviso é obrigatório
+              para o operador não confundir o frame com o estado atual. */}
+          {isHistory && (
+            <div className="pointer-events-none absolute left-1/2 top-4 z-[1001] flex -translate-x-1/2 items-center gap-2 rounded-full border border-amber-300/80 bg-amber-50/95 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-800 shadow-lg backdrop-blur-sm">
+              <History size={13} />
+              {loadingSnapshot ? 'Carregando instante…' : 'Modo histórico'}
+              {!loadingSnapshot && historical == null && ' • sem frame'}
+            </div>
+          )}
         </main>
 
         <aside className="absolute right-7 top-7 z-[1000] flex h-[calc(75vh-2rem)] min-h-[610px] max-h-[740px] w-[340px] flex-col overflow-hidden rounded-[22px] border border-white/70 bg-white/55 shadow-[0_20px_48px_rgba(15,23,42,0.14)] backdrop-blur-[3px] max-sm:right-5 max-sm:w-[calc(50%-1.5rem)] max-sm:min-h-[500px] max-sm:h-[calc(70vh-1rem)]">
@@ -553,11 +587,21 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
           <SourceFreshness sources={freshnessSources} now={now} />
         </aside>
       </div>
+
+      <TimelineBar />
     </div>
   )
 }
 
 export default function App() {
+  return (
+    <TimeCursorProvider>
+      <Dashboard />
+    </TimeCursorProvider>
+  )
+}
+
+function Dashboard() {
   const semaforos = useSemaforos({ pollingMs: 60000 })
   const waze = useWazeTraffic({ pollingMs: 120000 })
   const occurrences = useOpenEvents({ pollingMs: 60000 })

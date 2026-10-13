@@ -24,7 +24,8 @@ import {
 import { aggregateTraffic, normalizeAlerts, normalizeJams } from '../domain/waze.js'
 import { resolveEventType } from '../domain/eventTypeMap.js'
 import { collectAll, collectOccurrences, collectTrafficLights } from './collector.js'
-import { createFileStore } from './metricStore.js'
+import { buildFramePayload, occurrencesFrame, wazeFrame, trafficLightsFrame, camerasFrame } from './collector.js'
+import { createFileStore, pickFrameAt } from './metricStore.js'
 import { createHistoryHandlers, isCollectAuthorized } from './routes.js'
 
 // ------------------------------------------------------------------ domínio --
@@ -378,6 +379,183 @@ describe('store de arquivo (desenvolvimento)', () => {
   })
 })
 
+// ------------------------------------------------------------------- frames --
+
+describe('seleção do frame aplicável', () => {
+  const frames = [
+    { collectedAt: '2026-08-01T10:00:00.000Z', payload: { n: 1 } },
+    { collectedAt: '2026-08-01T10:15:00.000Z', payload: { n: 2 } },
+    { collectedAt: '2026-08-01T10:30:00.000Z', payload: { n: 3 } },
+  ]
+
+  it('devolve o frame em ou antes do instante e o próximo', () => {
+    const { snapshot, next } = pickFrameAt(frames, '2026-08-01T10:20:00.000Z')
+    assert.equal(snapshot.payload.n, 2)
+    assert.equal(next.payload.n, 3)
+  })
+
+  it('devolve o próprio frame quando o instante coincide', () => {
+    const { snapshot, next } = pickFrameAt(frames, '2026-08-01T10:15:00.000Z')
+    assert.equal(snapshot.payload.n, 2)
+    assert.equal(next.payload.n, 3)
+  })
+
+  it('devolve snapshot nulo antes do primeiro frame', () => {
+    const { snapshot, next } = pickFrameAt(frames, '2026-08-01T09:00:00.000Z')
+    assert.equal(snapshot, null)
+    assert.equal(next.payload.n, 1)
+  })
+
+  it('devolve next nulo depois do último frame', () => {
+    const { snapshot, next } = pickFrameAt(frames, '2026-08-01T11:00:00.000Z')
+    assert.equal(snapshot.payload.n, 3)
+    assert.equal(next, null)
+  })
+
+  it('lida com lista vazia e data inválida', () => {
+    assert.deepEqual(pickFrameAt([], '2026-08-01T10:00:00.000Z'), { snapshot: null, next: null })
+    assert.deepEqual(pickFrameAt(frames, 'nao-e-data'), { snapshot: null, next: null })
+  })
+})
+
+describe('store de arquivo: frames', () => {
+  let dir
+
+  before(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cor-frames-'))
+  })
+
+  after(async () => {
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('grava frames e busca o aplicável a um instante', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    await store.insertFrame({
+      collectedAt: '2026-08-02T10:00:00.000Z',
+      payload: { occurrences: [{ id: 'A1' }] },
+      sourcesOk: ['ocorrencias'],
+      sourcesFailed: ['cameras'],
+    })
+    await store.insertFrame({
+      collectedAt: '2026-08-02T10:15:00.000Z',
+      payload: { occurrences: [{ id: 'A1' }, { id: 'A2' }] },
+      sourcesOk: ['ocorrencias', 'cameras'],
+      sourcesFailed: [],
+    })
+
+    const { snapshot, next } = await store.getFrameAt('2026-08-02T10:10:00.000Z')
+    assert.equal(snapshot.collectedAt, '2026-08-02T10:00:00.000Z')
+    assert.equal(snapshot.payload.occurrences.length, 1)
+    assert.deepEqual(snapshot.sourcesFailed, ['cameras'])
+    assert.equal(next.collectedAt, '2026-08-02T10:15:00.000Z')
+  })
+
+  it('não devolve frame anterior fora da janela de busca', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+    // O único frame é de agosto; um pedido de outubro está além da janela de 7 dias.
+    const { snapshot } = await store.getFrameAt('2026-10-02T10:10:00.000Z')
+    assert.equal(snapshot, null)
+  })
+
+  it('lista os instantes disponíveis no intervalo', async () => {
+    const store = createFileStore(dir)
+    await store.ensureSchema()
+
+    const frames = await store.listFrames({
+      from: '2026-08-02T00:00:00.000Z',
+      to: '2026-08-02T23:59:59.000Z',
+    })
+    assert.equal(frames.length, 2)
+    assert.equal(frames[0].collectedAt, '2026-08-02T10:00:00.000Z')
+    assert.ok(frames[0].payloadBytes > 0)
+
+    const narrow = await store.listFrames({
+      from: '2026-08-02T10:10:00.000Z',
+      to: '2026-08-02T23:59:59.000Z',
+    })
+    assert.equal(narrow.length, 1)
+  })
+})
+
+describe('payload do frame', () => {
+  it('monta o frame apenas com o essencial para o mapa', () => {
+    const events = [
+      {
+        id: 'A1',
+        type: 'Alagamento',
+        typeKey: 'pop27',
+        severity: 'high',
+        severityColor: '#EF4444',
+        severityLabel: 'Alta',
+        status: 'Ativo',
+        location: 'Av. Brasil',
+        timestamp: 1,
+        coordinates: { latitude: -22.9, longitude: -43.2 },
+      },
+      { id: 'A2', type: 'Obra', severity: 'low', location: 'Centro', timestamp: 2 },
+    ]
+
+    const frame = occurrencesFrame(events)
+    assert.equal(frame.length, 2)
+    assert.deepEqual(frame[0].coordinates, [-22.9, -43.2])
+    // Ocorrência sem coordenadas continua no frame, mas sem o campo.
+    assert.equal('coordinates' in frame[1], false)
+  })
+
+  it('inclui só trechos com retenção e alertas com posição', () => {
+    const frame = wazeFrame({
+      jams: [
+        { id: 'j1', street: 'A', level: 4, coordinates: [[-22.9, -43.2], [-22.91, -43.21]], lengthKm: 2, speedKmh: 10, delayS: 60, bucketColor: '#EF4444', bucketLabel: 'Intenso' },
+        { id: 'j2', street: 'B', level: 1, coordinates: [[-22.9, -43.2], [-22.92, -43.22]], lengthKm: 5 },
+      ],
+      alerts: [{ id: 'a1', groupKey: 'accident', label: 'Acidente', severity: 'high', lat: -22.9, lon: -43.2, updatedAt: 1 }],
+    })
+
+    assert.equal(frame.jams.length, 1)
+    assert.equal(frame.jams[0].id, 'j1')
+    assert.equal(frame.alerts.length, 1)
+  })
+
+  it('inclui só controladores com falha e coordenadas', () => {
+    const frame = trafficLightsFrame([
+      { id: 'C1', groupKey: 'offline', latitude: -22.9, longitude: -43.2, flags: [{ label: 'Sem comunicação' }] },
+      { id: 'C2', groupKey: 'normal', latitude: -22.9, longitude: -43.2, flags: [] },
+      { id: 'C3', groupKey: 'alarm', latitude: null, longitude: null, flags: [] },
+    ])
+
+    assert.equal(frame.length, 1)
+    assert.equal(frame[0].id, 'C1')
+    assert.deepEqual(frame[0].flags, ['Sem comunicação'])
+  })
+
+  it('inclui só câmeras geolocalizadas', () => {
+    const frame = camerasFrame([
+      { id: 1, code: 'C1', statusRaw: '0', status: { key: 'online' }, latitude: -22.9, longitude: -43.2 },
+      { id: 2, code: 'C2', statusRaw: 'A', status: { key: 'maintenance' }, latitude: null, longitude: null },
+    ])
+    assert.equal(frame.length, 1)
+    assert.equal(frame[0].code, 'C1')
+  })
+
+  it('monta o payload consolidado com fonte faltante vazia', () => {
+    const payload = buildFramePayload([
+      { source: 'ocorrencias', ok: true, frame: [{ id: 'A1' }] },
+      { source: 'waze', ok: true, frame: { jams: [], alerts: [] } },
+      { source: 'semaforos', ok: false, frame: null },
+      { source: 'cameras', ok: false, frame: null },
+    ])
+
+    assert.equal(payload.occurrences.length, 1)
+    assert.deepEqual(payload.trafficLights, [])
+    assert.deepEqual(payload.cameras, [])
+    assert.deepEqual(payload.waze, { jams: [], alerts: [] })
+  })
+})
+
 // -------------------------------------------------------------------- rotas --
 
 function createRes() {
@@ -471,5 +649,55 @@ describe('rotas do histórico', () => {
     )
     assert.equal(res.body.count, 0)
     assert.deepEqual(res.body.samples, [])
+  })
+
+  it('grava o frame junto da coleta', async () => {
+    globalThis.fetch = stubFetch(FULL_ROUTES)
+    const handlers = createHistoryHandlers(env)
+    const res = createRes()
+    await handlers.collect({ headers: { 'x-collect-secret': 'segredo' } }, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.ok(res.body.payloadBytes > 0)
+  })
+
+  it('serve o snapshot do frame gravado', async () => {
+    const handlers = createHistoryHandlers(env)
+
+    // O frame é do momento atual (a coleta anterior usou `now`); pedimos um
+    // instante à frente para garantir que o frame esteja "em ou antes".
+    const at = new Date(Date.now() + 60_000).toISOString()
+    const res = createRes()
+    await handlers.snapshot({ url: `/api/snapshot?at=${encodeURIComponent(at)}` }, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body.available, true)
+    assert.ok(res.body.at)
+    assert.ok(res.body.effectiveLagMs >= 0)
+    assert.ok(Array.isArray(res.body.payload.occurrences))
+    assert.ok(res.body.sourcesOk.includes('ocorrencias'))
+  })
+
+  it('responde 404 quando não há frame para o instante', async () => {
+    const handlers = createHistoryHandlers(env)
+    const res = createRes()
+    await handlers.snapshot({ url: '/api/snapshot?at=2019-01-01T00:00:00Z' }, res)
+
+    assert.equal(res.statusCode, 404)
+    assert.equal(res.body.available, false)
+    assert.equal(res.body.payload, null)
+  })
+
+  it('lista os instantes de frame para a linha do tempo', async () => {
+    const handlers = createHistoryHandlers(env)
+    const res = createRes()
+    const from = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    await handlers.frames({ url: `/api/frames?from=${encodeURIComponent(from)}` }, res)
+
+    assert.equal(res.statusCode, 200)
+    // Coletas anteriores nesta suíte também gravaram frames na última hora.
+    assert.ok(res.body.count >= 1)
+    assert.ok(res.body.frames.every((f) => Array.isArray(f.sourcesFailed)))
+    assert.ok(res.body.frames[0].collectedAt)
   })
 })

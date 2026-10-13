@@ -38,12 +38,15 @@ app.get('/healthz', (_req, res) => {
 // navegador) e o cache evita baixar ~1 MB por visitante a cada polling.
 app.get('/api/waze-feed', createWazeFeedHandler(process.env))
 
-// Histórico: POST /api/collect grava uma amostra de métricas por fonte e
-// GET /api/metrics lê o intervalo pedido. O POST exige COLLECT_SECRET, porque
-// o agendador (GitHub Actions/Render Cron) chama o endpoint de fora.
+// Histórico: POST /api/collect grava uma amostra de métricas por fonte e o
+// frame do momento; as rotas GET servem a série, o replay e a linha do tempo.
+// O POST exige COLLECT_SECRET, porque o agendador (GitHub Actions/Render Cron)
+// chama o endpoint de fora.
 const history = createHistoryHandlers(process.env)
 app.post('/api/collect', (req, res) => history.collect(req, res))
 app.get('/api/metrics', (req, res) => history.metrics(req, res))
+app.get('/api/snapshot', (req, res) => history.snapshot(req, res))
+app.get('/api/frames', (req, res) => history.frames(req, res))
 
 // Intercepta o Login do COR: o cliente não precisa conhecer as credenciais,
 // elas são injetadas aqui (e nunca entram no bundle do navegador).

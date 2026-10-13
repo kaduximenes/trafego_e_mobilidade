@@ -37,6 +37,22 @@ export default defineConfig(({ mode }) => {
     })
   }
 
+  // Middlewares das rotas do histórico, compartilhados entre dev e preview.
+  const historyMiddlewares = (server) => {
+    server.middlewares.use('/api/collect', (req, res, next) =>
+      req.method === 'POST' ? history.collect(req, res) : next(),
+    )
+    server.middlewares.use('/api/metrics', (req, res, next) =>
+      req.method === 'GET' ? history.metrics(req, res) : next(),
+    )
+    server.middlewares.use('/api/snapshot', (req, res, next) =>
+      req.method === 'GET' ? history.snapshot(req, res) : next(),
+    )
+    server.middlewares.use('/api/frames', (req, res, next) =>
+      req.method === 'GET' ? history.frames(req, res) : next(),
+    )
+  }
+
   return {
     plugins: [
       react(),
@@ -47,21 +63,11 @@ export default defineConfig(({ mode }) => {
         name: 'waze-feed-dev-endpoint',
         configureServer: (server) => {
           server.middlewares.use('/api/waze-feed', wazeFeed)
-          server.middlewares.use('/api/collect', (req, res, next) =>
-            req.method === 'POST' ? history.collect(req, res) : next(),
-          )
-          server.middlewares.use('/api/metrics', (req, res, next) =>
-            req.method === 'GET' ? history.metrics(req, res) : next(),
-          )
+          historyMiddlewares(server)
         },
         configurePreviewServer: (server) => {
           server.middlewares.use('/api/waze-feed', wazeFeed)
-          server.middlewares.use('/api/collect', (req, res, next) =>
-            req.method === 'POST' ? history.collect(req, res) : next(),
-          )
-          server.middlewares.use('/api/metrics', (req, res, next) =>
-            req.method === 'GET' ? history.metrics(req, res) : next(),
-          )
+          historyMiddlewares(server)
         },
       },
     ],

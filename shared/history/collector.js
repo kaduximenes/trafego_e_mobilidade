@@ -1,5 +1,5 @@
-// Coletor do histórico: busca o estado atual de cada fonte e reduz a métricas
-// compactas (uma linha por fonte por coleta).
+// Coletor do histórico: busca o estado atual de cada fonte, grava métricas
+// compactas (série temporal) e um frame compacto (para o replay do mapa).
 //
 // Por que roda no servidor: as APIs do COR/Antares/Tixxi não enviam CORS e as
 // credenciais não podem ir para o bundle do navegador. Além disso o coletor
@@ -7,6 +7,10 @@
 //
 // A normalização e a agregação usam shared/domain/*, exatamente as mesmas
 // funções que a UI usa — não existe segunda implementação das regras.
+//
+// O ciclo é separado em duas fases por fonte:
+//   fetch*  → dados normalizados (a chamada de rede acontece uma única vez)
+//   derive* → métricas e payload do frame a partir dos mesmos dados
 //
 // Cada fonte é coletada de forma isolada: uma falha não impede as outras e fica
 // registrada como amostra com ok=false, para que a lacuna do histórico seja
@@ -26,6 +30,39 @@ import { getWazeFeed } from '../wazeFeed.js'
 
 const REQUEST_TIMEOUT_MS = 30000
 const ESTADO_PATH = '/antares/restful/integracao/v1/controlador/estado'
+
+// Limites do payload do frame: o suficiente para redesenhar o mapa sem inflar o
+// banco. O feed de ocorrências cobre a cidade inteira; os alertas do Waze já são
+// centenas, então guardamos os mais relevantes.
+const FRAME_OCCURRENCE_LIMIT = 400
+const FRAME_ALERT_LIMIT = 120
+const FRAME_JAM_LIMIT = 150
+// Os controladores plotáveis são centenas (o grupo "sem comunicação" domina);
+// 120 já cobrem o mapa sem repetir o feed inteiro.
+const FRAME_CONTROLLER_LIMIT = 120
+// As geometrias do Waze são o que mais pesa no frame. 30 pontos por trecho já
+// desenham a via com fidelidade suficiente em zoom de cidade, e 5 casas decimais
+// (~1 m) não têm perda visível.
+const FRAME_JAM_MAX_POINTS = 30
+const COORD_DECIMALS = 5
+
+function roundCoord(value, digits = COORD_DECIMALS) {
+  if (!Number.isFinite(value)) return null
+  const factor = 10 ** digits
+  return Math.round(value * factor) / factor
+}
+
+function thinCoordinates(coordinates, maxPoints = FRAME_JAM_MAX_POINTS) {
+  if (!Array.isArray(coordinates) || coordinates.length <= maxPoints) {
+    return (coordinates || []).map(([lat, lon]) => [roundCoord(lat), roundCoord(lon)])
+  }
+
+  const stride = (coordinates.length - 1) / (maxPoints - 1)
+  return Array.from({ length: maxPoints }, (_, index) => {
+    const [lat, lon] = coordinates[Math.round(index * stride)]
+    return [roundCoord(lat), roundCoord(lon)]
+  })
+}
 
 function targetFor(prefix, env) {
   const route = proxyRoutes.find((item) => item.prefix === prefix)
@@ -77,7 +114,7 @@ function round(value, digits = 1) {
 
 // --------------------------------------------------------------- Ocorrências --
 
-export async function collectOccurrences(env = {}) {
+export async function fetchOccurrences(env = {}) {
   const base = targetFor('/api/corio-events', env)
   if (!base) throw new Error('Destino da API do COR não configurado.')
 
@@ -99,7 +136,10 @@ export async function collectOccurrences(env = {}) {
     body: new URLSearchParams({ token }).toString(),
   })
 
-  const events = normalizeEvents(payload)
+  return normalizeEvents(payload)
+}
+
+export function occurrencesMetrics(events) {
   const { severityCounts, typeCounts } = aggregateEvents(events)
 
   return {
@@ -114,13 +154,45 @@ export async function collectOccurrences(env = {}) {
   }
 }
 
+// O frame guarda só o necessário para redesenhar os marcadores.
+export function occurrencesFrame(events) {
+  return events.slice(0, FRAME_OCCURRENCE_LIMIT).map((event) => ({
+    id: event.id,
+    type: event.type,
+    typeKey: event.typeKey,
+    severity: event.severity,
+    severityColor: event.severityColor,
+    severityLabel: event.severityLabel,
+    status: event.status,
+    location: event.location,
+    timestamp: event.timestamp,
+    ...(event.coordinates
+      ? {
+          coordinates: [
+            roundCoord(event.coordinates.latitude),
+            roundCoord(event.coordinates.longitude),
+          ],
+        }
+      : {}),
+  }))
+}
+
+export async function collectOccurrences(env = {}) {
+  return occurrencesMetrics(await fetchOccurrences(env))
+}
+
 // -------------------------------------------------------------------- Waze --
 
-export async function collectWaze(env = {}) {
+export async function fetchWaze(env = {}) {
   const feed = await getWazeFeed(env.WAZE_FEED_URL)
+  return {
+    jams: normalizeJams(feed.jams),
+    alerts: normalizeAlerts(feed.alerts),
+    stale: Boolean(feed.stale),
+  }
+}
 
-  const jams = normalizeJams(feed.jams)
-  const alerts = normalizeAlerts(feed.alerts)
+export function wazeMetrics({ jams, alerts, stale }) {
   const traffic = aggregateTraffic(jams)
   const alertSummary = aggregateAlerts(alerts)
 
@@ -133,13 +205,50 @@ export async function collectWaze(env = {}) {
     alertCount: alertSummary.alertCount,
     alertsBySeverity: alertSummary.bySeverity,
     alertsByGroup: alertSummary.byGroup.map((group) => ({ key: group.key, count: group.count })),
-    stale: Boolean(feed.stale),
+    stale,
   }
+}
+
+// Só os trechos com retenção vão para o frame; o resto é fluxo livre e não é
+// desenhado no mapa.
+export function wazeFrame({ jams, alerts }) {
+  const congested = jams
+    .filter((jam) => jam.level >= 3 && jam.coordinates.length >= 2)
+    .sort((a, b) => b.lengthKm - a.lengthKm)
+    .slice(0, FRAME_JAM_LIMIT)
+
+  return {
+    jams: congested.map((jam) => ({
+      id: jam.id,
+      street: jam.street,
+      level: jam.level,
+      bucketColor: jam.bucketColor,
+      bucketLabel: jam.bucketLabel,
+      lengthKm: round(jam.lengthKm, 2),
+      speedKmh: jam.speedKmh,
+      delayS: jam.delayS,
+      coordinates: thinCoordinates(jam.coordinates),
+    })),
+    alerts: alerts.slice(0, FRAME_ALERT_LIMIT).map((alert) => ({
+      id: alert.id,
+      groupKey: alert.groupKey,
+      label: alert.label,
+      severity: alert.severity,
+      street: alert.street,
+      lat: roundCoord(alert.lat),
+      lon: roundCoord(alert.lon),
+      updatedAt: alert.updatedAt,
+    })),
+  }
+}
+
+export async function collectWaze(env = {}) {
+  return wazeMetrics(await fetchWaze(env))
 }
 
 // --------------------------------------------------------------- Semáforos --
 
-export async function collectTrafficLights(env = {}) {
+export async function fetchTrafficLights(env = {}) {
   const base = targetFor('/api/antares', env)
   if (!base) throw new Error('Destino da API Antares não configurado.')
 
@@ -148,7 +257,10 @@ export async function collectTrafficLights(env = {}) {
     headers: env.ANTARES_API_KEY ? { 'API-Key': env.ANTARES_API_KEY } : {},
   })
 
-  const controllers = normalizeControllers(payload)
+  return normalizeControllers(payload)
+}
+
+export function trafficLightsMetrics(controllers) {
   const summary = aggregateControllers(controllers)
 
   return {
@@ -163,9 +275,36 @@ export async function collectTrafficLights(env = {}) {
   }
 }
 
+// O frame guarda os controladores com falha, que são os plotáveis no mapa.
+export function trafficLightsFrame(controllers) {
+  return controllers
+    .filter(
+      (controller) =>
+        controller.groupKey !== 'normal' &&
+        controller.latitude !== null &&
+        controller.longitude !== null,
+    )
+    .slice(0, FRAME_CONTROLLER_LIMIT)
+    .map((controller) => ({
+      id: controller.id,
+      estado: controller.estado,
+      groupKey: controller.groupKey,
+      groupLabel: controller.groupLabel,
+      groupColor: controller.groupColor,
+      latitude: roundCoord(controller.latitude),
+      longitude: roundCoord(controller.longitude),
+      lastCommunication: controller.lastCommunication,
+      flags: controller.flags.map((flag) => flag.label),
+    }))
+}
+
+export async function collectTrafficLights(env = {}) {
+  return trafficLightsMetrics(await fetchTrafficLights(env))
+}
+
 // ----------------------------------------------------------------- Câmeras --
 
-export async function collectCameras(env = {}) {
+export async function fetchCameras(env = {}) {
   const base = env.TIXXI_TARGET || 'http://10.50.3.96:8000'
 
   // A Tixxi roda na rede interna do COR: fora dela a coleta falha e a amostra
@@ -190,7 +329,10 @@ export async function collectCameras(env = {}) {
   })
 
   const list = payload?.cameras ?? payload
-  const cameras = normalizeCameras(Array.isArray(list) ? list : [])
+  return normalizeCameras(Array.isArray(list) ? list : [])
+}
+
+export function camerasMetrics(cameras) {
   const counts = countCameraStatuses(cameras)
 
   return {
@@ -204,23 +346,61 @@ export async function collectCameras(env = {}) {
   }
 }
 
+export function camerasFrame(cameras) {
+  return cameras
+    .filter((camera) => camera.latitude !== null && camera.longitude !== null)
+    .map((camera) => ({
+      id: camera.id,
+      code: camera.code,
+      name: camera.name,
+      statusRaw: camera.statusRaw,
+      statusKey: camera.status?.key,
+      statusLabel: camera.status?.label,
+      statusColor: camera.status?.color,
+      latitude: roundCoord(camera.latitude),
+      longitude: roundCoord(camera.longitude),
+    }))
+}
+
+export async function collectCameras(env = {}) {
+  return camerasMetrics(await fetchCameras(env))
+}
+
 // ------------------------------------------------------------------ Orquestra --
 
+// Cada fonte declara como buscar, como virar métrica e como virar frame.
+// `endpoint` é o nome usado no filtro de /api/metrics.
 const SOURCES = [
-  { source: 'ocorrencias', collect: collectOccurrences },
-  { source: 'waze', collect: collectWaze },
-  { source: 'semaforos', collect: collectTrafficLights },
-  { source: 'cameras', collect: collectCameras },
+  { source: 'ocorrencias', endpoint: 'occurrences', fetch: fetchOccurrences, metrics: occurrencesMetrics, frame: occurrencesFrame },
+  { source: 'waze', endpoint: 'waze', fetch: fetchWaze, metrics: wazeMetrics, frame: wazeFrame },
+  { source: 'semaforos', endpoint: 'trafficLights', fetch: fetchTrafficLights, metrics: trafficLightsMetrics, frame: trafficLightsFrame },
+  { source: 'cameras', endpoint: 'cameras', fetch: fetchCameras, metrics: camerasMetrics, frame: camerasFrame },
 ]
 
-// Coleta todas as fontes em paralelo. Falhas viram amostras ok=false.
+// Coleta todas as fontes em paralelo. Falhas viram amostras ok=false e ficam
+// ausentes do frame (melhor não desenhar do que desenhar dado errado).
 export async function collectAll(env = {}, { now = new Date() } = {}) {
   const results = await Promise.all(
-    SOURCES.map(async ({ source, collect }) => {
+    SOURCES.map(async ({ source, fetch: fetchSource, metrics, frame }) => {
       try {
-        return { source, ok: true, error: null, metrics: await collect(env) }
+        const data = await fetchSource(env)
+        return {
+          source,
+          ok: true,
+          error: null,
+          metrics: metrics(data),
+          frame: frame(data),
+          count: Array.isArray(data) ? data.length : null,
+        }
       } catch (err) {
-        return { source, ok: false, error: err?.message || 'Falha desconhecida na coleta.', metrics: {} }
+        return {
+          source,
+          ok: false,
+          error: err?.message || 'Falha desconhecida na coleta.',
+          metrics: {},
+          frame: null,
+          count: null,
+        }
       }
     }),
   )
@@ -230,5 +410,18 @@ export async function collectAll(env = {}, { now = new Date() } = {}) {
     samples: results,
     ok: results.every((sample) => sample.ok),
     failed: results.filter((sample) => !sample.ok).map((sample) => sample.source),
+  }
+}
+
+// Monta o payload do frame: um objeto por fonte, no formato que o mapa consome.
+export function buildFramePayload(samples) {
+  const bySource = Object.fromEntries(samples.map((sample) => [sample.source, sample]))
+
+  return {
+    occurredAt: null,
+    occurrences: bySource.ocorrencias?.frame || [],
+    waze: bySource.waze?.frame || { jams: [], alerts: [] },
+    trafficLights: bySource.semaforos?.frame || [],
+    cameras: bySource.cameras?.frame || [],
   }
 }
