@@ -21,6 +21,8 @@ import { WazeTopJams } from './components/waze/WazeTopJams'
 import { WazeAlertsPanel } from './components/waze/WazeAlertsPanel'
 import { CAMERA_STATUS } from './services/tixxi'
 import { BASEMAPS, getBasemap } from './constants/basemaps'
+import { useNow } from './hooks/useNow'
+import { SourceFreshness } from './components/status/SourceFreshness'
 import { formatDecimal, formatNumber } from './utils/format'
 
 const FAILURE_FEED_LIMIT = 12
@@ -100,6 +102,15 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   const failures = (semaforos.failures || []).slice(0, FAILURE_FEED_LIMIT)
   const activeTabSource = { occurrences, traffic: waze, signals: semaforos, cameras }[activeTab] || occurrences
   const basemap = getBasemap(mapLayer)
+  const now = useNow(30000)
+  // Intervalos esperados de cada fonte alimentam o indicador de frescura: o
+  // valor precisa acompanhar o pollingMs configurado em App().
+  const freshnessSources = [
+    { key: 'occurrences', label: 'Ocorrências', lastUpdated: occurrences.lastUpdated, expectedMs: 60000 },
+    { key: 'traffic', label: 'Waze', lastUpdated: waze.lastUpdated, expectedMs: 120000 },
+    { key: 'signals', label: 'Semáforos', lastUpdated: semaforos.lastUpdated, expectedMs: 60000 },
+    { key: 'cameras', label: 'Câmeras', lastUpdated: cameras.lastUpdated, expectedMs: 300000 },
+  ]
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
@@ -506,6 +517,8 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
               </div>
             </>
           )}
+
+          <SourceFreshness sources={freshnessSources} now={now} />
         </aside>
       </div>
     </div>

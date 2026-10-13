@@ -1,7 +1,8 @@
-import { AlertTriangle, BarChart3, Camera, Map, Siren, TrafficCone } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Camera, Map, Siren, TrafficCone } from 'lucide-react'
 import { CAMERA_STATUS } from '../../services/tixxi'
 import { hourlyVolume, topHours } from '../../data/mockData'
 import { formatDecimal, formatNumber } from '../../utils/format'
+import { INFRASTRUCTURE_STATUS_LABEL, computeInfrastructureHealth } from '../../utils/infrastructure'
 import { Panel } from '../ui/Panel'
 
 const totalVehicles = hourlyVolume.reduce((total, item) => total + item.volume, 0)
@@ -55,6 +56,8 @@ export function IndicatorsSummary({ occurrences, waze, cameras, semaforos }) {
   const wazeDataUnavailable = !waze.configured || (!waze.loading && waze.error && !waze.lastUpdated)
   const highestSeverity = occurrences.severityCounts?.high?.count || 0
   const topOccurrence = occurrences.typeCounts?.[0]
+  const infrastructure = computeInfrastructureHealth({ semaforos, cameras })
+  const infrastructureLoading = semaforos.loading || cameras.loading
 
   return (
     <section aria-labelledby="indicators-summary-title">
@@ -161,6 +164,30 @@ export function IndicatorsSummary({ occurrences, waze, cameras, semaforos }) {
             label="Fora do estado normal"
             value={semaforos.loading ? '—' : formatNumber(semaforos.total - semaforos.normalCount)}
           />
+        </IndicatorCard>
+
+        <IndicatorCard
+          icon={Activity}
+          title="Saúde da infraestrutura"
+          loading={infrastructureLoading}
+          note="Média da disponibilidade dos subsistemas monitorados; cada rede tem o mesmo peso."
+        >
+          <Metric
+            label="Índice consolidado"
+            value={infrastructureLoading || infrastructure.pct === null ? '—' : `${formatDecimal(infrastructure.pct)}%`}
+            detail={INFRASTRUCTURE_STATUS_LABEL[infrastructure.status]}
+          />
+          {infrastructure.subsystems.map((subsystem) => (
+            <Metric
+              key={subsystem.key}
+              label={subsystem.label}
+              value={infrastructureLoading ? '—' : `${formatDecimal(subsystem.pct)}%`}
+              detail={`${formatNumber(subsystem.total)} ativos`}
+            />
+          ))}
+          {!infrastructureLoading && infrastructure.subsystems.length === 0 && (
+            <p className="text-[11px] text-text-dim">Sem dados de semáforos ou câmeras para consolidar.</p>
+          )}
         </IndicatorCard>
       </div>
     </section>

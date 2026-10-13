@@ -5,12 +5,14 @@ export function useCameras() {
   const [cameras, setCameras] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   const refresh = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
     setError(null)
     try {
       setCameras(await getCameras())
+      setLastUpdated(new Date().toISOString())
     } catch (err) {
       setError(err?.message || 'Erro ao carregar câmeras')
     } finally {
@@ -23,7 +25,9 @@ export function useCameras() {
 
     void getCameras()
       .then((data) => {
-        if (!cancelled) setCameras(data)
+        if (cancelled) return
+        setCameras(data)
+        setLastUpdated(new Date().toISOString())
       })
       .catch((err) => {
         if (!cancelled) setError(err?.message || 'Erro ao carregar câmeras')
@@ -45,5 +49,5 @@ export function useCameras() {
     return result
   }, [cameras])
 
-  return { cameras, counts, loading, error, refresh }
+  return { cameras, counts, loading, error, lastUpdated, refresh }
 }
