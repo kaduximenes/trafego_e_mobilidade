@@ -29,6 +29,7 @@ export function TimelineBar() {
     error,
     playing,
     speedLabel,
+    secondsPerFrame,
     windowOptions,
     windowHours,
     setWindowHours,
@@ -104,7 +105,7 @@ export function TimelineBar() {
             type="button"
             onClick={cycleSpeed}
             disabled={!isHistory}
-            title="Velocidade de reprodução"
+            title={`Velocidade de reprodução — ${secondsPerFrame} s por quadro`}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-300/70 bg-white/50 px-2 py-1.5 text-[10px] font-semibold text-slate-600 hover:bg-white/80 disabled:opacity-40"
           >
             <Gauge size={12} />

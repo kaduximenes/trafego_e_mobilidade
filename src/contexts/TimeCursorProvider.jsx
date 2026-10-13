@@ -10,10 +10,20 @@ import { TimeCursorContext } from './timeCursorContext'
 // momento em vez dos dados ao vivo. Manter isso explícito evita o pior cenário
 // operacional possível: o operador olhar dado antigo acreditando ser o agora.
 
+// Velocidades de reprodução. O rótulo é um múltiplo do ritmo base de 60 s por
+// quadro: 0,5× segura 120 s em cada quadro e 12× passa um a cada 5 s.
+//
+// Atenção: isso NÃO é "velocidade em relação ao tempo real". Como a coleta é a
+// cada 15 min, mesmo 1× avança bem mais rápido que o relógio — por isso a barra
+// mostra os segundos por quadro, que é a informação sem ambiguidade.
+const PLAYBACK_BASE_MS = 60000
+
 const PLAYBACK_SPEEDS = [
-  { label: '1×', ms: 60000 },
-  { label: '4×', ms: 15000 },
-  { label: '12×', ms: 5000 },
+  { label: '0,5×', ms: PLAYBACK_BASE_MS / 0.5 },
+  { label: '1×', ms: PLAYBACK_BASE_MS },
+  { label: '2×', ms: PLAYBACK_BASE_MS / 2 },
+  { label: '4×', ms: PLAYBACK_BASE_MS / 4 },
+  { label: '12×', ms: PLAYBACK_BASE_MS / 12 },
 ]
 
 // A lista de frames é recarregada periodicamente para que a linha do tempo
@@ -199,6 +209,9 @@ export function TimeCursorProvider({
       error: error || (snapshotApplied ? snapshotState.error : null),
       playing,
       speedLabel: (PLAYBACK_SPEEDS[speedIndex] || PLAYBACK_SPEEDS[0]).label,
+      // Segundos de reprodução por quadro: o rótulo "1×" é um múltiplo do ritmo
+      // base, não do tempo real, então expor isso evita interpretação errada.
+      secondsPerFrame: Math.round(speedMs / 1000),
       windowOptions: TIMELINE_WINDOWS,
       windowHours,
       setWindowHours,
@@ -224,6 +237,7 @@ export function TimeCursorProvider({
       error,
       playing,
       speedIndex,
+      speedMs,
       windowHours,
       refreshFrames,
       enterHistory,
