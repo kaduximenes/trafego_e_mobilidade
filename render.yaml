@@ -1,9 +1,15 @@
 # Blueprint do Render — https://render.com/docs/blueprint-spec
 #
-# ATENÇÃO: mantenha EXATAMENTE UM blueprint conectado a este repositório. Se
-# houver dois lendo o mesmo render.yaml (que declara `name: trafego-iacor`), o
-# segundo cria um serviço duplicado com sufixo a cada push, porque o nome já
-# está tomado pelo primeiro. Isso já aconteceu uma vez e foi removido.
+# ATENÇÃO (histórico que já custou um serviço duplicado): mantenha EXATAMENTE
+# UM blueprint conectado a este repositório. Dois blueprints lendo o mesmo
+# render.yaml (que declara `name: trafego-iacor`) fazem o segundo criar um
+# serviço com sufixo a cada push, porque o nome já está tomado pelo primeiro.
+#
+# Estado atual: NÃO há blueprint conectado (os dois que existiam foram
+# desconectados). O serviço `trafego-iacor` implanta código sozinho via
+# autoDeploy do GitHub e tem as variáveis de ambiente configuradas no painel —
+# este arquivo é uma referência da infra esperada, não é reaplicado em push.
+# Se um dia reconectar um blueprint no painel, mantenha exatamente um.
 #
 # Por que um servidor Node e não hospedagem estática:
 # as APIs do COR e do Antares não enviam cabeçalhos CORS, então o navegador só
