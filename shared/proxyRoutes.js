@@ -26,13 +26,12 @@ export const proxyRoutes = [
   },
 ]
 
-// Remove o prefixo do proxy do caminho. Rotas com queryPath movem o restante
-// do caminho para o query string do destino.
+// Remove o prefixo do proxy do caminho. Rotas marcadas com queryPath movem o
+// restante do caminho para o query string do destino.
 export function rewriteProxyPath(route, path) {
   const rest = path.replace(new RegExp(`^${route.prefix}`), '')
   if (!route.queryPath) return rest
-  // Sem caminho restante (pedido à raiz do prefixo) devolve vazio, para não
-  // enviar um `?` solto ao gateway.
+  // Sem caminho restante (pedido à raiz do prefixo) devolve vazio.
   const apiPath = rest.replace(/^\/+/, '')
   return apiPath ? `?${apiPath}` : ''
 }

@@ -36,6 +36,9 @@ function friendlyError(res, path, detail) {
   if (res.status === 401) {
     return 'Tixxi: falha de autenticação'
   }
+  if (res.status === 502) {
+    return 'Tixxi: a API de câmeras não está acessível a partir do servidor da aplicação. A hospedagem precisa de acesso à rede do COR (VPN/rota) ou de um gateway acessível.'
+  }
   const suffix = detail ? ` (${detail})` : ''
   return `Tixxi ${path} falhou (${res.status})${suffix}`
 }

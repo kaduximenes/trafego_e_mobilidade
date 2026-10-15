@@ -119,7 +119,7 @@ async function loginTixxi(env = {}) {
   const base = targetFor('/api/tixxi', env)
   if (!base) throw fail('Destino do Tixxi não configurado.', 503)
 
-  const response = await fetch(`${base}?api/auth/login`, {
+  const response = await fetch(`${base.replace(/\/+$/, '')}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams({
