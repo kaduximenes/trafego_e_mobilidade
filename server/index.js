@@ -57,7 +57,9 @@ startBackgroundCollector(process.env, { intervalMs: collectIntervalMs }).start()
 // responde 400 "Invalid token" e o Tixxi, 429/403). O servidor mantém a sessão
 // única (shared/upstreamSession.js) e devolve o token já existente.
 app.post('/api/corio-events/Login', express.json(), async (req, res) => {
-  const { status, body } = await corioLoginResponse(process.env)
+  const { status, body } = await corioLoginResponse(process.env, {
+    force: req.query.force === 'true',
+  })
   res.status(status).json(body)
 })
 

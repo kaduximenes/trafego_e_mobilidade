@@ -146,8 +146,9 @@ export const tixxiSession = createUpstreamSession({ login: loginTixxi })
 
 // Resposta do login para o navegador: o mesmo formato do upstream, para que o
 // cliente não precise saber que o token vem do cache do servidor.
-export async function corioLoginResponse(env = {}) {
+export async function corioLoginResponse(env = {}, { force = false } = {}) {
   try {
+    if (force) corioSession.invalidate()
     const { token, expiresIn } = await corioSession.getSession(env)
     return { status: 200, body: { AccessToken: token, ExpiresIn: expiresIn, Error: null } }
   } catch (error) {

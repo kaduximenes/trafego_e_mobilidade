@@ -79,8 +79,9 @@ function readServerMessage(payload, fallback) {
 // autenticação para o token não ser invalidado no meio da chamada.
 let loginInFlight = null
 
-async function performLogin() {
-  const response = await request(`${EVENTS_API_BASE}/Login`, {
+async function performLogin({ force = false } = {}) {
+  const loginUrl = `${EVENTS_API_BASE}/Login${force ? '?force=true' : ''}`
+  const response = await request(loginUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   })
@@ -115,7 +116,7 @@ export function loginToEventsApi({ force = false } = {}) {
   }
 
   if (!loginInFlight) {
-    loginInFlight = performLogin().finally(() => {
+    loginInFlight = performLogin({ force }).finally(() => {
       loginInFlight = null
     })
   }

@@ -137,6 +137,28 @@ describe('resposta de login compartilhada', () => {
     assert.equal(logins, 1)
   })
 
+  it('renova a sessão COR no upstream quando o navegador solicita login forçado', async () => {
+    let logins = 0
+    globalThis.fetch = async (url) => {
+      assert.equal(String(url), 'https://api.corio-oncall.com.br/hxgnEvents/api/Events/Login')
+      logins += 1
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ AccessToken: `corio-token-${logins}`, ExpiresIn: 3600 }),
+      }
+    }
+
+    const first = await corioLoginResponse({})
+    const renewed = await corioLoginResponse({}, { force: true })
+    const collectorToken = await corioSession.getToken({})
+
+    assert.equal(first.body.AccessToken, 'corio-token-1')
+    assert.equal(renewed.body.AccessToken, 'corio-token-2')
+    assert.equal(collectorToken, 'corio-token-2')
+    assert.equal(logins, 2)
+  })
+
   it('o navegador e o coletor compartilham um único login no Tixxi', async () => {
     let logins = 0
     globalThis.fetch = async (url) => {

@@ -35,15 +35,16 @@ export default defineConfig(({ mode }) => {
       res.end(JSON.stringify(body))
     }
 
-    const handleLogin = (responseFor) => async (req, res, next) => {
+    const handleLogin = (responseFor, { forceable = false } = {}) => async (req, res, next) => {
       if (req.method !== 'POST') return next()
       // O corpo não é usado (as credenciais vêm do servidor), mas precisa ser
       // drenado para a conexão não ficar pendurada.
       req.resume()
-      respond(res, await responseFor(env))
+      const force = forceable && new URL(req.url, 'http://localhost').searchParams.get('force') === 'true'
+      respond(res, await responseFor(env, { force }))
     }
 
-    server.middlewares.use('/api/corio-events/Login', handleLogin(corioLoginResponse))
+    server.middlewares.use('/api/corio-events/Login', handleLogin(corioLoginResponse, { forceable: true }))
     server.middlewares.use('/api/tixxi/api/auth/login', handleLogin(tixxiLoginResponse))
   }
 
