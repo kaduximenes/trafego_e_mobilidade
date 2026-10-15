@@ -64,8 +64,8 @@ app.post('/api/corio-events/Login', express.json(), (req, _res, next) => {
   next()
 })
 
-// Intercepta o Login do Tixxi: injeta as credenciais do servidor e fixa o
-// Content-Type em form-urlencoded (formato exigido pelo gateway api.tixxi.rio).
+// Intercepta o login da API de câmeras: injeta as credenciais do servidor e
+// fixa o Content-Type em form-urlencoded.
 app.post('/api/tixxi/api/auth/login', express.urlencoded({ extended: true }), (req, _res, next) => {
   req.body = { api_key: TIXXI_API_KEY, email: TIXXI_EMAIL, password: TIXXI_PASSWORD }
   req.headers['content-type'] = 'application/x-www-form-urlencoded'

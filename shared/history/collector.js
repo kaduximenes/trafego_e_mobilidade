@@ -323,10 +323,9 @@ export async function fetchCameras(env = {}) {
   const base = targetFor('/api/tixxi', env)
   const { apiKey, email, password } = tixxiCredentials(env)
 
-  // O gateway público do Tixxi roteia pelo query string e exige login
-  // form-urlencoded. Uma falha aqui deixa a amostra de câmeras indisponível,
-  // sem derrubar as outras fontes.
-  const login = await requestJson(`${base}?api/auth/login`, {
+  // A API exige login form-urlencoded. Uma falha aqui deixa a amostra de
+  // câmeras indisponível, sem derrubar as outras fontes.
+  const login = await requestJson(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ api_key: apiKey, email, password }).toString(),
@@ -336,7 +335,7 @@ export async function fetchCameras(env = {}) {
     throw new Error('Tixxi: falha na autenticação ao coletar câmeras.')
   }
 
-  const payload = await requestJson(`${base}?api/cameras`, {
+  const payload = await requestJson(`${base}/api/cameras`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${login.access_token}` },
   })
