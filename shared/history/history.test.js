@@ -28,6 +28,7 @@ import { buildFramePayload, occurrencesFrame, wazeFrame, trafficLightsFrame, cam
 import { entityStatesOf, occurrenceRecords } from './collector.js'
 import { createFileStore, diffEntities, pickFrameAt, getRetentionConfig, retentionCutoff } from './metricStore.js'
 import { createHistoryHandlers, isCollectAuthorized, startBackgroundCollector } from './routes.js'
+import { resetUpstreamSessions } from '../upstreamSession.js'
 
 // ------------------------------------------------------------------ domínio --
 
@@ -235,6 +236,9 @@ describe('coletor', () => {
 
   beforeEach(() => {
     originalFetch = globalThis.fetch
+    // A sessão do upstream é única e fica em cache: sem limpar, um teste
+    // herdaria o token do anterior e não exercitaria o login.
+    resetUpstreamSessions()
   })
 
   after(() => {

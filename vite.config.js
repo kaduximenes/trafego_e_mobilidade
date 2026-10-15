@@ -5,6 +5,7 @@ import { buildViteProxy } from './shared/proxyRoutes.js'
 import { createWazeFeedHandler } from './shared/wazeFeed.js'
 import { createHistoryHandlers } from './shared/history/routes.js'
 import { createHealthHandler } from './shared/health.js'
+import { corioLoginResponse, tixxiLoginResponse } from './shared/upstreamSession.js'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -24,19 +25,26 @@ export default defineConfig(({ mode }) => {
     })
   }
 
-  proxy['/api/corio-events'].configure = (proxyServer) => {
-    proxyServer.on('proxyReq', (proxyReq, req) => {
-      const requestPath = new URL(req.url, 'http://localhost').pathname
-      if (req.method !== 'POST' || !requestPath.endsWith('/Login')) return
+  // O login do COR e do Tixxi é respondido aqui, e não repassado ao upstream: as
+  // duas APIs só admitem UMA sessão por vez, então devolver o token já existente
+  // (shared/upstreamSession.js) evita que a UI e o coletor derrubem um ao outro.
+  const loginMiddlewares = (server) => {
+    const respond = (res, { status, body }) => {
+      res.statusCode = status
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify(body))
+    }
 
-      const body = JSON.stringify({
-        UserName: env.CORIO_EVENTS_USERNAME || 'APIOpenedEvent',
-        Password: env.CORIO_EVENTS_PASSWORD || '12345',
-      })
-      proxyReq.setHeader('Content-Type', 'application/json')
-      proxyReq.setHeader('Content-Length', Buffer.byteLength(body))
-      proxyReq.write(body)
-    })
+    const handleLogin = (responseFor) => async (req, res, next) => {
+      if (req.method !== 'POST') return next()
+      // O corpo não é usado (as credenciais vêm do servidor), mas precisa ser
+      // drenado para a conexão não ficar pendurada.
+      req.resume()
+      respond(res, await responseFor(env))
+    }
+
+    server.middlewares.use('/api/corio-events/Login', handleLogin(corioLoginResponse))
+    server.middlewares.use('/api/tixxi/api/auth/login', handleLogin(tixxiLoginResponse))
   }
 
   // Middlewares das rotas do histórico, compartilhados entre dev e preview.
@@ -75,10 +83,12 @@ export default defineConfig(({ mode }) => {
       {
         name: 'waze-feed-dev-endpoint',
         configureServer: (server) => {
+          loginMiddlewares(server)
           server.middlewares.use('/api/waze-feed', wazeFeed)
           historyMiddlewares(server)
         },
         configurePreviewServer: (server) => {
+          loginMiddlewares(server)
           server.middlewares.use('/api/waze-feed', wazeFeed)
           historyMiddlewares(server)
         },

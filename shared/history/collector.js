@@ -26,6 +26,7 @@ import { aggregateEvents, normalizeEvents } from '../domain/eventos.js'
 import { aggregateControllers, normalizeControllers } from '../domain/semaforos.js'
 import { aggregateAlerts, aggregateTraffic, normalizeAlerts, normalizeJams } from '../domain/waze.js'
 import { proxyRoutes } from '../proxyRoutes.js'
+import { corioSession, tixxiSession } from '../upstreamSession.js'
 import { getWazeFeed } from '../wazeFeed.js'
 
 const REQUEST_TIMEOUT_MS = 30000
@@ -115,29 +116,39 @@ function round(value, digits = 1) {
   return Math.round(value * factor) / factor
 }
 
+// A sessão é única por upstream: um token pode ser invalidado entre o cache e a
+// chamada. Nesse caso descarta o token e repete uma única vez.
+function isInvalidToken(error) {
+  if (error?.status === 401) return true
+  return error?.status === 400 && /invalid token/i.test(error.message || '')
+}
+
+async function withSession(session, env, call) {
+  const token = await session.getToken(env)
+  try {
+    return await call(token)
+  } catch (error) {
+    if (!isInvalidToken(error)) throw error
+    session.invalidate()
+    return call(await session.getToken(env))
+  }
+}
+
 // --------------------------------------------------------------- Ocorrências --
 
 export async function fetchOccurrences(env = {}) {
   const base = targetFor('/api/corio-events', env)
   if (!base) throw new Error('Destino da API do COR não configurado.')
 
-  const login = await requestJson(`${base}/Login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      UserName: env.CORIO_EVENTS_USERNAME || 'APIOpenedEvent',
-      Password: env.CORIO_EVENTS_PASSWORD || '12345',
+  // O login pertence ao servidor (upstreamSession): o coletor reaproveita o
+  // token em vez de abrir uma segunda sessão e derrubar a que a UI está usando.
+  const payload = await withSession(corioSession, env, (token) =>
+    requestJson(`${base}/OpenedEvents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }).toString(),
     }),
-  })
-
-  const token = login?.AccessToken || login?.accessToken || login?.token || login?.data?.AccessToken
-  if (!token) throw new Error('Login da API do COR não retornou token.')
-
-  const payload = await requestJson(`${base}/OpenedEvents`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ token }).toString(),
-  })
+  )
 
   return normalizeEvents(payload)
 }
@@ -307,38 +318,16 @@ export async function collectTrafficLights(env = {}) {
 
 // ----------------------------------------------------------------- Câmeras --
 
-// Credenciais da Tixxi para o coletor. O `.env` de desenvolvimento define as
-// variáveis com prefixo VITE_ (consumidas pelo bundle ao chamar a API pelo
-// navegador); aqui aceitamos as duas formas para não obrigar a duplicar o mesmo
-// segredo só porque o consumidor mudou. Em produção prevalecem as sem prefixo.
-function tixxiCredentials(env = {}) {
-  return {
-    apiKey: env.TIXXI_API_KEY || env.VITE_TIXXI_API_KEY || '',
-    email: env.TIXXI_EMAIL || env.VITE_TIXXI_EMAIL || '',
-    password: env.TIXXI_PASSWORD || env.VITE_TIXXI_PASSWORD || '',
-  }
-}
-
 export async function fetchCameras(env = {}) {
   const base = targetFor('/api/tixxi', env)
-  const { apiKey, email, password } = tixxiCredentials(env)
 
-  // A API exige login form-urlencoded. Uma falha aqui deixa a amostra de
-  // câmeras indisponível, sem derrubar as outras fontes.
-  const login = await requestJson(`${base}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ api_key: apiKey, email, password }).toString(),
-  })
-
-  if (!login?.success || !login?.access_token) {
-    throw new Error('Tixxi: falha na autenticação ao coletar câmeras.')
-  }
-
-  const payload = await requestJson(`${base}/api/cameras`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${login.access_token}` },
-  })
+  // Reaproveita a sessao unica: um segundo login derrubaria a que a UI esta usando.
+  const payload = await withSession(tixxiSession, env, (token) =>
+    requestJson(`${base.replace(/\/+$/, '')}/api/cameras`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  )
 
   const list = payload?.cameras ?? payload
   return normalizeCameras(Array.isArray(list) ? list : [])
