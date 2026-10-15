@@ -2,7 +2,17 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { pathToFileURL } from 'url';
 
-const WAZE_URL = 'https://www.waze.com/row-partnerhub-api/partners/11633596527/waze-feeds/e8185b12-350b-47cc-88fd-44b72765d111';
+// A URL do feed carrega o token do parceiro, ou seja, é uma credencial: vem do
+// ambiente (a mesma WAZE_FEED_URL usada pelo servidor) e nunca do repositório.
+function wazeFeedUrl() {
+  const url = process.env.WAZE_FEED_URL;
+  if (!url) {
+    throw new Error(
+      'WAZE_FEED_URL não definida (rode com `node --env-file=.env sync_waze.js`)',
+    );
+  }
+  return url;
+}
 export const OUTPUT_PATH = './waze_irregularities.geojson';
 
 // O feed cobre a região metropolitana; o painel usa somente o município do Rio.
@@ -91,7 +101,7 @@ function grupoDoAlerta(alerta) {
 // e os alertas reportados pelos usuários (categoria "alerta": acidentes, interdições, perigos).
 // metadata.versao muda somente quando o conteúdo muda.
 export async function lerWaze() {
-  const res = await fetch(WAZE_URL, {
+  const res = await fetch(wazeFeedUrl(), {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) COR-Rio/1.0'
     }
@@ -216,7 +226,7 @@ export function salvarWaze(geojson) {
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(geojson, null, 2), 'utf8');
 }
 
-// Execução direta: node sync_waze.js
+// Execução direta: node --env-file=.env sync_waze.js
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   console.log('Consultando feed de irregularidades do Waze...');
   try {
