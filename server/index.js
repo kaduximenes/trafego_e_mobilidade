@@ -8,7 +8,7 @@ import express from 'express'
 import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { proxyRoutes } from '../shared/proxyRoutes.js'
+import { proxyRoutes, rewriteProxyPath } from '../shared/proxyRoutes.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
 import { createHealthHandler } from '../shared/health.js'
 import { createHistoryHandlers, startBackgroundCollector } from '../shared/history/routes.js'
@@ -22,6 +22,11 @@ const PORT = process.env.PORT || 5173
 const ANTARES_API_KEY = process.env.ANTARES_API_KEY || ''
 const CORIO_USERNAME = process.env.CORIO_EVENTS_USERNAME || 'APIOpenedEvent'
 const CORIO_PASSWORD = process.env.CORIO_EVENTS_PASSWORD || '12345'
+// Credenciais do Tixxi. Em produção prevalecem as sem prefixo (TIXXI_*); o
+// fallback para VITE_* cobre ambientes onde só existe um par de variáveis.
+const TIXXI_API_KEY = process.env.TIXXI_API_KEY || process.env.VITE_TIXXI_API_KEY || ''
+const TIXXI_EMAIL = process.env.TIXXI_EMAIL || process.env.VITE_TIXXI_EMAIL || ''
+const TIXXI_PASSWORD = process.env.TIXXI_PASSWORD || process.env.VITE_TIXXI_PASSWORD || ''
 
 const app = express()
 app.disable('x-powered-by')
@@ -59,6 +64,14 @@ app.post('/api/corio-events/Login', express.json(), (req, _res, next) => {
   next()
 })
 
+// Intercepta o Login do Tixxi: injeta as credenciais do servidor e fixa o
+// Content-Type em form-urlencoded (formato exigido pelo gateway api.tixxi.rio).
+app.post('/api/tixxi/api/auth/login', express.urlencoded({ extended: true }), (req, _res, next) => {
+  req.body = { api_key: TIXXI_API_KEY, email: TIXXI_EMAIL, password: TIXXI_PASSWORD }
+  req.headers['content-type'] = 'application/x-www-form-urlencoded'
+  next()
+})
+
 for (const route of proxyRoutes) {
   app.use(
     route.prefix,
@@ -66,7 +79,7 @@ for (const route of proxyRoutes) {
       target: route.resolveTarget(process.env),
       changeOrigin: true,
       secure: route.secure ?? false,
-      pathRewrite: (pathname) => pathname.replace(new RegExp(`^${route.prefix}`), ''),
+      pathRewrite: (pathname) => rewriteProxyPath(route, pathname),
       // Injeta as credenciais no servidor para que nunca cheguem ao navegador.
       on: {
         proxyReq: (proxyReq, req, res) => {

@@ -39,8 +39,8 @@ services:
         sync: false
       - key: WAZE_FEED_URL
         sync: false
-      # Tixxi roda em rede interna do COR e NÃO é alcançável pela internet
-      # pública. Só funciona se o Render tiver rota até essa rede (VPN/Túnel).
+      # Gateway público do Tixxi (substituiu a antiga rede interna 10.50.3.96).
+      # Deixe vazio para usar o padrão https://api.tixxi.rio/stream/.
       - key: TIXXI_TARGET
         sync: false
       # --- Histórico de métricas -------------------------------------------

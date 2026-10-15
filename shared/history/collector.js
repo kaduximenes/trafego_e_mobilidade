@@ -320,22 +320,23 @@ function tixxiCredentials(env = {}) {
 }
 
 export async function fetchCameras(env = {}) {
-  const base = env.TIXXI_TARGET || 'http://10.50.3.96:8000'
+  const base = targetFor('/api/tixxi', env)
   const { apiKey, email, password } = tixxiCredentials(env)
 
-  // A Tixxi roda na rede interna do COR: fora dela a coleta falha e a amostra
-  // fica registrada como indisponível, sem derrubar as outras fontes.
-  const login = await requestJson(`${base}/api/auth/login`, {
+  // O gateway público do Tixxi roteia pelo query string e exige login
+  // form-urlencoded. Uma falha aqui deixa a amostra de câmeras indisponível,
+  // sem derrubar as outras fontes.
+  const login = await requestJson(`${base}?api/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: apiKey, email, password }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ api_key: apiKey, email, password }).toString(),
   })
 
   if (!login?.success || !login?.access_token) {
     throw new Error('Tixxi: falha na autenticação ao coletar câmeras.')
   }
 
-  const payload = await requestJson(`${base}/api/cameras`, {
+  const payload = await requestJson(`${base}?api/cameras`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${login.access_token}` },
   })

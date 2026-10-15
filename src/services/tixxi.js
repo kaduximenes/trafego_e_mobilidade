@@ -41,10 +41,15 @@ function friendlyError(res, path, detail) {
 }
 
 async function post(path, body) {
+  // URLSearchParams serializa `undefined` como o texto "undefined"; o filtro
+  // mantém o comportamento antigo do JSON.stringify, que omitia a chave ausente.
+  const form = new URLSearchParams(
+    Object.entries(body).filter(([, value]) => value != null),
+  )
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
   })
   if (!res.ok) {
     throw new Error(friendlyError(res, path, await readErrorDetail(res)))
