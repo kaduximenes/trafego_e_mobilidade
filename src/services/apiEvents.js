@@ -135,7 +135,10 @@ async function requestOpenedEvents(token) {
   return { response, payload }
 }
 
-function isInvalidToken(response, payload) {
+// A sessão do COR é única: o token deixa de valer assim que o servidor o
+// renova. Trata como renovação tanto o "Invalid token" (400) quanto 401/403.
+function isStaleSession(response, payload) {
+  if (response.status === 401 || response.status === 403) return true
   return response.status === 400 && /invalid token/i.test(String(payload?.Message || payload?.message || ''))
 }
 
@@ -144,7 +147,7 @@ async function loadActiveEvents() {
   let { response, payload } = await requestOpenedEvents(token)
 
   // O token pode expirar entre o cache e a chamada: renova uma única vez.
-  if (isInvalidToken(response, payload)) {
+  if (isStaleSession(response, payload)) {
     token = await loginToEventsApi({ force: true })
     ;({ response, payload } = await requestOpenedEvents(token))
   }

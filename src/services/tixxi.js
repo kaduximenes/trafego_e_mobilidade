@@ -40,6 +40,12 @@ function friendlyError(res, path, detail) {
   return `Tixxi ${path} falhou (${res.status})${suffix}`
 }
 
+function apiError(res, path, detail) {
+  const error = new Error(friendlyError(res, path, detail))
+  error.status = res.status
+  return error
+}
+
 async function post(path, body) {
   // URLSearchParams serializa `undefined` como o texto "undefined"; o filtro
   // mantém o comportamento antigo do JSON.stringify, que omitia a chave ausente.
@@ -52,7 +58,7 @@ async function post(path, body) {
     body: form.toString(),
   })
   if (!res.ok) {
-    throw new Error(friendlyError(res, path, await readErrorDetail(res)))
+    throw apiError(res, path, await readErrorDetail(res))
   }
   return res.json()
 }
@@ -62,7 +68,7 @@ async function get(path, token) {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) {
-    throw new Error(friendlyError(res, path, await readErrorDetail(res)))
+    throw apiError(res, path, await readErrorDetail(res))
   }
   return res.json()
 }
@@ -100,17 +106,11 @@ export async function login() {
   if (authPromise) return authPromise
 
   authPromise = withRetry(async () => {
-    // O corpo só é preenchido no cliente em desenvolvimento. Em produção o
-    // proxy do servidor injeta as credenciais (server/index.js), evitando que
-    // VITE_* embuta segredos no bundle.
-    const payload = import.meta.env.DEV
-      ? {
-          api_key: import.meta.env.VITE_TIXXI_API_KEY,
-          email: import.meta.env.VITE_TIXXI_EMAIL,
-          password: import.meta.env.VITE_TIXXI_PASSWORD,
-        }
-      : {}
-    const data = await post('/api/auth/login', payload)
+    // O cliente NÃO envia credenciais: o servidor (dev e produção) responde o
+    // login a partir da sessão única dele. Isso mantém o segredo fora do bundle
+    // e, principalmente, evita uma segunda sessão no upstream — o gateway do
+    // Tixxi admite uma só e responde 429/403 quando ela é excedida.
+    const data = await post('/api/auth/login', {})
     if (!data?.success || !data?.access_token) {
       throw new Error('Tixxi: falha na autenticação (credenciais inválidas)')
     }
@@ -127,12 +127,29 @@ export async function login() {
   }
 }
 
-// Busca a lista de câmeras e normaliza (deduplicação por código e mapeamento
-// de status). Cada câmera pode ter múltiplos streams (html/raw); mantemos o
-// stream 'html' preferencial.
-export async function getCameras() {
+function forgetToken() {
+  cachedToken = null
+  tokenExpiresAt = 0
+}
+
+async function loadCameras() {
   const token = await login()
   const data = await withRetry(() => get('/api/cameras', token))
   const list = data?.cameras ?? data
   return normalizeCameras(Array.isArray(list) ? list : [])
+}
+
+// Busca a lista de câmeras e normaliza (deduplicação por código e mapeamento
+// de status). Cada câmera pode ter múltiplos streams (html/raw); mantemos o
+// stream 'html' preferencial.
+export async function getCameras() {
+  try {
+    return await loadCameras()
+  } catch (err) {
+    // A sessão pertence ao servidor: quando ele renova o token, o nosso fica
+    // para trás e o upstream responde 401. Descarta o cache e tenta de novo.
+    if (err?.status !== 401) throw err
+    forgetToken()
+    return loadCameras()
+  }
 }

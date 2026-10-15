@@ -9,6 +9,7 @@ import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { proxyRoutes, rewriteProxyPath } from '../shared/proxyRoutes.js'
+import { corioLoginResponse, tixxiLoginResponse } from '../shared/upstreamSession.js'
 import { createWazeFeedHandler } from '../shared/wazeFeed.js'
 import { createHealthHandler } from '../shared/health.js'
 import { createHistoryHandlers, startBackgroundCollector } from '../shared/history/routes.js'
@@ -19,14 +20,9 @@ const DIST_DIR = path.resolve(__dirname, '..', 'dist')
 const PORT = process.env.PORT || 5173
 
 // Chaves consumidas apenas pelo servidor (nunca chegam ao cliente).
+// As credenciais do COR e do Tixxi ficam em shared/upstreamSession.js, que é
+// quem faz o login único de cada upstream.
 const ANTARES_API_KEY = process.env.ANTARES_API_KEY || ''
-const CORIO_USERNAME = process.env.CORIO_EVENTS_USERNAME || 'APIOpenedEvent'
-const CORIO_PASSWORD = process.env.CORIO_EVENTS_PASSWORD || '12345'
-// Credenciais do Tixxi. Em produção prevalecem as sem prefixo (TIXXI_*); o
-// fallback para VITE_* cobre ambientes onde só existe um par de variáveis.
-const TIXXI_API_KEY = process.env.TIXXI_API_KEY || process.env.VITE_TIXXI_API_KEY || ''
-const TIXXI_EMAIL = process.env.TIXXI_EMAIL || process.env.VITE_TIXXI_EMAIL || ''
-const TIXXI_PASSWORD = process.env.TIXXI_PASSWORD || process.env.VITE_TIXXI_PASSWORD || ''
 
 const app = express()
 app.disable('x-powered-by')
@@ -55,21 +51,19 @@ app.get('/api/state-changes', (req, res) => history.stateChanges(req, res))
 const collectIntervalMs = Number(process.env.COLLECT_INTERVAL_MINUTES || 15) * 60 * 1000
 startBackgroundCollector(process.env, { intervalMs: collectIntervalMs }).start()
 
-// Intercepta o Login do COR: o cliente não precisa conhecer as credenciais,
-// elas são injetadas aqui (e nunca entram no bundle do navegador).
-// GraphQL/REST bodies já lidos pelo express precisam ser reescritos de volta no
-// stream para o proxy — por isso o fixRequestBody.
-app.post('/api/corio-events/Login', express.json(), (req, _res, next) => {
-  req.body = { UserName: CORIO_USERNAME, Password: CORIO_PASSWORD }
-  next()
+// O login do COR e do Tixxi é resolvido AQUI, e não repassado ao upstream.
+// As duas APIs só admitem uma sessão por vez: se o navegador e o coletor
+// logassem cada um por conta própria, um derrubaria o token do outro (o COR
+// responde 400 "Invalid token" e o Tixxi, 429/403). O servidor mantém a sessão
+// única (shared/upstreamSession.js) e devolve o token já existente.
+app.post('/api/corio-events/Login', express.json(), async (req, res) => {
+  const { status, body } = await corioLoginResponse(process.env)
+  res.status(status).json(body)
 })
 
-// Intercepta o Login do Tixxi: injeta as credenciais do servidor e fixa o
-// Content-Type em form-urlencoded (formato exigido pelo gateway api.tixxi.rio).
-app.post('/api/tixxi/api/auth/login', express.urlencoded({ extended: true }), (req, _res, next) => {
-  req.body = { api_key: TIXXI_API_KEY, email: TIXXI_EMAIL, password: TIXXI_PASSWORD }
-  req.headers['content-type'] = 'application/x-www-form-urlencoded'
-  next()
+app.post('/api/tixxi/api/auth/login', express.urlencoded({ extended: true }), async (req, res) => {
+  const { status, body } = await tixxiLoginResponse(process.env)
+  res.status(status).json(body)
 })
 
 for (const route of proxyRoutes) {
