@@ -17,6 +17,7 @@ import {
 } from './upstreamSession.js'
 
 const TTL_MS = 3600 * 1000
+const TIXXI_ENV = { TIXXI_API_KEY: 'k', TIXXI_EMAIL: 'e', TIXXI_PASSWORD: 'p' }
 
 function countingLogin(token = 't1', expiresIn = 3600) {
   const state = { calls: 0 }
@@ -171,8 +172,8 @@ describe('resposta de login compartilhada', () => {
       throw new Error(`fetch não previsto: ${target}`)
     }
 
-    const browser = await tixxiLoginResponse({})
-    const collectorToken = await tixxiSession.getToken({})
+    const browser = await tixxiLoginResponse(TIXXI_ENV)
+    const collectorToken = await tixxiSession.getToken(TIXXI_ENV)
 
     assert.equal(browser.status, 200)
     assert.equal(browser.body.success, true)
@@ -188,10 +189,35 @@ describe('resposta de login compartilhada', () => {
       text: async () => JSON.stringify({ success: false, message: 'Maximum simultaneous connections reached' }),
     })
 
-    const { status, body } = await tixxiLoginResponse({})
+    const { status, body } = await tixxiLoginResponse(TIXXI_ENV)
 
     assert.equal(status, 429)
     assert.equal(body.success, false)
     assert.match(body.message, /Maximum simultaneous connections/)
+  })
+
+  it('não chama o upstream quando faltam credenciais do Tixxi', async () => {
+    globalThis.fetch = async (url) => {
+      throw new Error(`fetch não previsto: ${url}`)
+    }
+
+    const { status, body } = await tixxiLoginResponse({ TIXXI_API_KEY: 'k' })
+
+    assert.equal(status, 503)
+    assert.equal(body.success, false)
+    assert.match(body.message, /credenciais não configuradas \(email, password\)/)
+  })
+
+  it('mostra os campos rejeitados quando o Tixxi responde 422', async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 422,
+      text: async () => JSON.stringify({ success: false, message: 'Validation failed', errors: { email: ['Email is invalid'] } }),
+    })
+
+    const { status, body } = await tixxiLoginResponse(TIXXI_ENV)
+
+    assert.equal(status, 422)
+    assert.match(body.message, /Validation failed: Email is invalid/)
   })
 })

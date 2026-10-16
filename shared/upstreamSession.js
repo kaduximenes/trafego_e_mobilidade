@@ -119,20 +119,33 @@ async function loginTixxi(env = {}) {
   const base = targetFor('/api/tixxi', env)
   if (!base) throw fail('Destino do Tixxi não configurado.', 503)
 
+  const credentials = {
+    api_key: env.TIXXI_API_KEY || env.VITE_TIXXI_API_KEY || '',
+    email: env.TIXXI_EMAIL || env.VITE_TIXXI_EMAIL || '',
+    password: env.TIXXI_PASSWORD || env.VITE_TIXXI_PASSWORD || '',
+  }
+  // Sem credencial o upstream só responde 422 "Validation failed"; falhar aqui
+  // diz o que falta e não gasta uma tentativa de login.
+  const missing = Object.keys(credentials).filter((key) => !credentials[key])
+  if (missing.length) {
+    throw fail(`Tixxi: credenciais não configuradas (${missing.join(', ')}). Defina TIXXI_API_KEY, TIXXI_EMAIL e TIXXI_PASSWORD no .env.`, 503)
+  }
+
   const response = await fetch(`${base.replace(/\/+$/, '')}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-    body: new URLSearchParams({
-      api_key: env.TIXXI_API_KEY || env.VITE_TIXXI_API_KEY || '',
-      email: env.TIXXI_EMAIL || env.VITE_TIXXI_EMAIL || '',
-      password: env.TIXXI_PASSWORD || env.VITE_TIXXI_PASSWORD || '',
-    }).toString(),
+    body: new URLSearchParams(credentials).toString(),
     signal: AbortSignal.timeout(LOGIN_TIMEOUT_MS),
   })
 
   const payload = await readPayload(response)
   if (!response.ok || !payload?.success) {
-    const detail = payload?.message || payload?.Message || 'falha na autenticação'
+    // 422 traz os campos rejeitados em `errors` ({ campo: [mensagens] }).
+    const fieldErrors = payload?.errors && typeof payload.errors === 'object'
+      ? Object.values(payload.errors).flat().join('; ')
+      : ''
+    const message = payload?.message || payload?.Message || 'falha na autenticação'
+    const detail = fieldErrors ? `${message}: ${fieldErrors}` : message
     throw fail(`Tixxi: ${detail} (HTTP ${response.status})`, response.ok ? 502 : response.status)
   }
 

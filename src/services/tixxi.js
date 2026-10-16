@@ -22,6 +22,8 @@ async function readErrorDetail(res) {
 
 // Mensagem amigável para os códigos de erro mais comuns da Tixxi.
 function friendlyError(res, path, detail) {
+  // O login é respondido pelo nosso servidor, que já formata a mensagem.
+  if (/^Tixxi:/.test(detail || '')) return detail
   // O backend Tixxi devolve "Maximum simultaneous connections reached"
   // com status 429 (e, por vezes, 403 via proxy). Detecta pelo texto.
   if (/simultaneous connections|conexões simultâneas/i.test(detail || '')) {
