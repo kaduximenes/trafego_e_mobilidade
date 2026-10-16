@@ -10,7 +10,7 @@
 // navegador pede /Login e recebe o token que já existe, sem falar com o
 // upstream — assim os dois consomem a MESMA sessão em vez de competir por ela.
 
-import { proxyRoutes } from './proxyRoutes.js'
+import { proxyRoutes, upstreamUrl } from './proxyRoutes.js'
 
 const LOGIN_TIMEOUT_MS = 30000
 const DEFAULT_SKEW_MS = 60000
@@ -116,8 +116,8 @@ async function loginCorio(env = {}) {
 // ---------------------------------------------------------------- Tixxi --
 
 async function loginTixxi(env = {}) {
-  const base = targetFor('/api/tixxi', env)
-  if (!base) throw fail('Destino do Tixxi não configurado.', 503)
+  const url = upstreamUrl('/api/tixxi', env, '/api/auth/login')
+  if (!url) throw fail('Destino do Tixxi não configurado.', 503)
 
   const credentials = {
     api_key: env.TIXXI_API_KEY || env.VITE_TIXXI_API_KEY || '',
@@ -131,7 +131,7 @@ async function loginTixxi(env = {}) {
     throw fail(`Tixxi: credenciais não configuradas (${missing.join(', ')}). Defina TIXXI_API_KEY, TIXXI_EMAIL e TIXXI_PASSWORD no .env.`, 503)
   }
 
-  const response = await fetch(`${base.replace(/\/+$/, '')}/api/auth/login`, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(credentials).toString(),

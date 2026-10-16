@@ -25,7 +25,7 @@ import {
 import { aggregateEvents, normalizeEvents } from '../domain/eventos.js'
 import { aggregateControllers, normalizeControllers } from '../domain/semaforos.js'
 import { aggregateAlerts, aggregateTraffic, normalizeAlerts, normalizeJams } from '../domain/waze.js'
-import { proxyRoutes } from '../proxyRoutes.js'
+import { proxyRoutes, upstreamUrl } from '../proxyRoutes.js'
 import { corioSession, tixxiSession } from '../upstreamSession.js'
 import { getWazeFeed } from '../wazeFeed.js'
 
@@ -319,11 +319,10 @@ export async function collectTrafficLights(env = {}) {
 // ----------------------------------------------------------------- Câmeras --
 
 export async function fetchCameras(env = {}) {
-  const base = targetFor('/api/tixxi', env)
 
   // Reaproveita a sessao unica: um segundo login derrubaria a que a UI esta usando.
   const payload = await withSession(tixxiSession, env, (token) =>
-    requestJson(`${base.replace(/\/+$/, '')}/api/cameras`, {
+    requestJson(upstreamUrl('/api/tixxi', env, '/api/cameras'), {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
     }),

@@ -165,7 +165,7 @@ describe('resposta de login compartilhada', () => {
     globalThis.fetch = async (url) => {
       const target = String(url)
       if (target.includes('api/auth/login')) {
-        assert.equal(target, 'http://10.50.3.96:8000/api/auth/login')
+        assert.equal(target, 'https://api.tixxi.rio/stream/?api/auth/login')
         logins += 1
         return { ok: true, status: 200, text: async () => JSON.stringify({ success: true, access_token: 'tixxi-token', expires_in: 3600 }) }
       }

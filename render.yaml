@@ -39,7 +39,7 @@ services:
         sync: false
       - key: WAZE_FEED_URL
         sync: false
-      # Base URL alternativa da API de câmeras; vazia usa http://10.50.3.96:8000.
+      # Gateway alternativo do Tixxi; vazio usa https://api.tixxi.rio/stream/.
       - key: TIXXI_TARGET
         sync: false
       # --- Histórico de métricas -------------------------------------------

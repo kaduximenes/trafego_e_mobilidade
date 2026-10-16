@@ -197,7 +197,7 @@ const COLLECT_ENV = {
   CORIO_EVENTS_PASSWORD: 'p',
   WAZE_FEED_URL: 'https://waze.test/feed',
   ANTARES_API_KEY: 'k',
-  TIXXI_TARGET: 'http://tixxi.test',
+  TIXXI_TARGET: 'http://tixxi.test/stream/',
   TIXXI_API_KEY: 'k',
   TIXXI_EMAIL: 'e',
   TIXXI_PASSWORD: 'p',
@@ -219,8 +219,8 @@ const FULL_ROUTES = {
       { controlador: 'C2', estado: 'Sem comunicação' },
     ],
   },
-  '/api/auth/login': { body: { success: true, access_token: 'tt' } },
-  '/api/cameras': {
+  '?api/auth/login': { body: { success: true, access_token: 'tt' } },
+  '?api/cameras': {
     body: { cameras: [{ code: 'C1', CameraStatus: '0' }, { code: 'C2', CameraStatus: 'A' }] },
   },
   'waze.test/feed': {
@@ -276,7 +276,7 @@ describe('coletor', () => {
 
   it('isola falha de uma fonte sem derrubar as demais', async () => {
     // Uma falha da API de câmeras não deve interromper as outras fontes.
-    globalThis.fetch = stubFetch({ ...FULL_ROUTES, '/api/cameras': { status: 500, body: {} } })
+    globalThis.fetch = stubFetch({ ...FULL_ROUTES, '?api/cameras': { status: 500, body: {} } })
 
     const result = await collectAll(COLLECT_ENV)
 
@@ -295,7 +295,7 @@ describe('coletor', () => {
   it('propaga erro de credencial da Tixxi', async () => {
     globalThis.fetch = stubFetch({
       ...FULL_ROUTES,
-      '/api/auth/login': { body: { success: false } },
+      '?api/auth/login': { body: { success: false } },
     })
     await assert.rejects(() => collectAll({
       ...COLLECT_ENV,

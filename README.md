@@ -197,10 +197,12 @@ O deploy é descrito em `render.yaml`. Três pontos exigem atenção:
    - `HISTORY_BASE_URL` — URL pública do serviço
    - `COLLECT_SECRET` — o mesmo valor configurado no servidor
 
-3. **As câmeras são acessadas pela API do COR** em `http://10.50.3.96:8000`,
-   usando `/api/auth/login` e `/api/cameras`. As credenciais `api_key`/`email`/
-   `password` permanecem no servidor. Configure `TIXXI_TARGET` para outro host
-   quando necessário. Se a autenticação ou a coleta de câmeras falharem, a
+3. **As câmeras são acessadas pelo gateway público do Tixxi** em
+   `https://api.tixxi.rio/stream/`, que leva o caminho no query string
+   (`/stream/?api/auth/login`, `/stream/?api/cameras`). A API interna do COR
+   (`10.50.3.96:8000`) não é alcançável da hospedagem. As credenciais
+   `api_key`/`email`/`password` permanecem no servidor. `TIXXI_TARGET` aceita
+   outro gateway no mesmo formato. Se a autenticação ou a coleta de câmeras falharem, a
    amostra fica indisponível, sem afetar as demais fontes.
 
 ## Dependências: advisory conhecido
