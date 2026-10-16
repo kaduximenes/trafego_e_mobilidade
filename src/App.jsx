@@ -14,6 +14,7 @@ import { TrafficLightDonut } from './components/trafficLights/TrafficLightDonut'
 import { FaultBreakdown } from './components/trafficLights/FaultBreakdown'
 import { TrafficLightOccurrences } from './components/trafficLights/TrafficLightOccurrences'
 import { CamerasSection } from './components/cameras/CamerasSection'
+import { CameraStatusList } from './components/cameras/CameraStatusList'
 import { TimelineBar } from './components/history/TimelineBar'
 import { TimeCursorProvider } from './contexts/TimeCursorProvider'
 import { useTimeCursor } from './contexts/timeCursorContext'
@@ -23,7 +24,6 @@ import { CongestionKpi } from './components/waze/CongestionKpi'
 import { WazeTopJams } from './components/waze/WazeTopJams'
 import { WazeAlertsPanel } from './components/waze/WazeAlertsPanel'
 import { severityKeyOf } from './services/apiEvents'
-import { CAMERA_STATUS } from './services/tixxi'
 import { BASEMAPS, getBasemap } from './constants/basemaps'
 import { useNow } from './hooks/useNow'
 import { SourceFreshness } from './components/status/SourceFreshness'
@@ -125,10 +125,6 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   const camerasOnline = cameras?.counts?.['0'] || 0
   const camerasDown = Math.max(0, cameraTotal - camerasOnline)
   const cameraAvailability = cameraTotal ? (camerasOnline / cameraTotal) * 100 : 0
-  const cameraStatuses = Object.entries(CAMERA_STATUS).map(([raw, status]) => ({
-    ...status,
-    count: cameras?.counts?.[raw] || 0,
-  }))
   const topFailures = (semaforos.topFailures || []).slice(0, 5)
   const topFailureMax = Math.max(...topFailures.map((fault) => fault.value), 1)
   const failures = (semaforos.failures || []).slice(0, FAILURE_FEED_LIMIT)
@@ -564,15 +560,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
               </div>
               {cameras.error && <div className="m-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{cameras.error}</div>}
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-2 gap-1.5 p-3">
-                  {cameraStatuses.map((status) => (
-                    <div key={status.key} className="flex min-w-0 items-center gap-1.5 rounded-lg border border-white/50 bg-white/35 px-2 py-1.5">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: status.color }} />
-                      <span className="truncate text-[10px] font-medium text-slate-600">{status.label}</span>
-                      <strong className="ml-auto text-xs text-slate-800">{formatNumber(status.count)}</strong>
-                    </div>
-                  ))}
-                </div>
+                <CameraStatusList cameras={cameras?.cameras || []} counts={cameras?.counts || {}} />
                 <div className="space-y-3 border-t border-slate-200 p-4 text-xs text-slate-600">
                   <div className="flex justify-between"><span>Disponibilidade</span><strong className="text-slate-800">{cameraTotal ? `${formatDecimal(cameraAvailability)}%` : '—'}</strong></div>
                   <div className="flex justify-between"><span>Em manutenção</span><strong className="text-slate-800">{formatNumber(cameras?.counts?.A || 0)}</strong></div>
