@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, BarChart3, Camera, ChartColumn, ChevronDown, Gauge, History, Layers, Map as MapIcon, Navigation, PieChart, Radar, RefreshCw, Route, Siren, TrafficCone, Trophy } from 'lucide-react'
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import { useSemaforos } from './hooks/useSemaforos'
@@ -28,6 +28,7 @@ import { BASEMAPS, getBasemap } from './constants/basemaps'
 import { useNow } from './hooks/useNow'
 import { SourceFreshness } from './components/status/SourceFreshness'
 import { formatDecimal, formatNumber } from './utils/format'
+import { nearestCamera } from '../shared/domain/cameras.js'
 
 const FAILURE_FEED_LIMIT = 12
 const SEVERITY_FILTERS = [
@@ -61,6 +62,29 @@ function Footer() {
         Sistema operacional • Última atualização: 15/09/2026 23:56
       </p>
     </footer>
+  )
+}
+
+function formatDistance(meters) {
+  return meters < 1000 ? `${Math.round(meters)} m` : `${formatDecimal(meters / 1000)} km`
+}
+
+// Linha do popup com a câmera mais próxima da ocorrência. O popup só renderiza
+// o conteúdo quando está aberto, então a busca roda apenas no hover.
+function NearestCameraLine({ cameras, coordinates }) {
+  const { latitude, longitude } = coordinates || {}
+  const nearest = useMemo(() => nearestCamera(cameras, latitude, longitude), [cameras, latitude, longitude])
+  if (!nearest) return null
+  const { camera, distance } = nearest
+
+  return (
+    <div>
+      <span className="font-semibold">Câmera mais próxima:</span>{' '}
+      <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: camera.status?.color }} title={camera.status?.label} />
+      <span className="font-mono">{camera.code}</span>
+      {camera.name ? ` · ${camera.name}` : ''}{' '}
+      <span className="text-slate-500">({formatDistance(distance)})</span>
+    </div>
   )
 }
 
@@ -275,6 +299,7 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
                     </div>
                     <div><span className="font-semibold">Situação:</span> {event.status || 'Ativa'}</div>
                     <div><span className="font-semibold">Código:</span> {event.code || event.id}</div>
+                    <NearestCameraLine cameras={cameras?.cameras} coordinates={event.coordinates} />
                     {event.timestamp && (
                       <div>
                         <span className="font-semibold">Registro:</span>{' '}

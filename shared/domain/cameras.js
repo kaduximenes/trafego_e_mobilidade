@@ -61,3 +61,27 @@ export function cameraAvailabilityPct(counts = {}) {
   if (!total) return null
   return ((counts['0'] || 0) / total) * 100
 }
+
+// Distância em metros entre dois pontos (fórmula de haversine).
+export function distanceMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// Câmera mais próxima de um ponto, ignorando as sem coordenada válida.
+// Devolve { camera, distance } (distância em metros) ou null.
+export function nearestCamera(cameras, latitude, longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  let best = null
+  for (const camera of cameras || []) {
+    const lat = Number(camera.latitude)
+    const lon = Number(camera.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) continue
+    const distance = distanceMeters(latitude, longitude, lat, lon)
+    if (!best || distance < best.distance) best = { camera, distance }
+  }
+  return best
+}
