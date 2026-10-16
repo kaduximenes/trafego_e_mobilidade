@@ -85,3 +85,43 @@ export function nearestCamera(cameras, latitude, longitude) {
   }
   return best
 }
+
+// Índice espacial em grade (~1,1 km por célula) para achar câmeras perto de
+// um ponto sem percorrer a rede inteira a cada consulta.
+const GRID_CELL_DEG = 0.01
+
+function cellKey(latCell, lonCell) {
+  return `${latCell}:${lonCell}`
+}
+
+export function buildCameraIndex(cameras) {
+  const cells = new Map()
+  for (const camera of cameras || []) {
+    const lat = Number(camera.latitude)
+    const lon = Number(camera.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) continue
+    const key = cellKey(Math.floor(lat / GRID_CELL_DEG), Math.floor(lon / GRID_CELL_DEG))
+    if (!cells.has(key)) cells.set(key, [])
+    cells.get(key).push(camera)
+  }
+  return cells
+}
+
+// Câmeras a até `radiusMeters` do ponto, da mais próxima para a mais distante.
+// O raio deve ficar abaixo do tamanho da célula (~1,1 km), que é o alcance da
+// varredura das 3x3 células vizinhas.
+export function camerasWithin(index, latitude, longitude, radiusMeters) {
+  if (!index || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return []
+  const latCell = Math.floor(latitude / GRID_CELL_DEG)
+  const lonCell = Math.floor(longitude / GRID_CELL_DEG)
+  const found = []
+  for (let dLat = -1; dLat <= 1; dLat++) {
+    for (let dLon = -1; dLon <= 1; dLon++) {
+      for (const camera of index.get(cellKey(latCell + dLat, lonCell + dLon)) || []) {
+        const distance = distanceMeters(latitude, longitude, Number(camera.latitude), Number(camera.longitude))
+        if (distance <= radiusMeters) found.push({ camera, distance })
+      }
+    }
+  }
+  return found.sort((a, b) => a.distance - b.distance)
+}

@@ -15,6 +15,7 @@ import { FaultBreakdown } from './components/trafficLights/FaultBreakdown'
 import { TrafficLightOccurrences } from './components/trafficLights/TrafficLightOccurrences'
 import { CamerasSection } from './components/cameras/CamerasSection'
 import { CameraStatusList } from './components/cameras/CameraStatusList'
+import { NEARBY_CAMERAS_MIN_ZOOM, NearbyCamerasLayer } from './components/cameras/NearbyCamerasLayer'
 import { TimelineBar } from './components/history/TimelineBar'
 import { TimeCursorProvider } from './contexts/TimeCursorProvider'
 import { useTimeCursor } from './contexts/timeCursorContext'
@@ -31,6 +32,10 @@ import { formatDecimal, formatNumber } from './utils/format'
 import { nearestCamera } from '../shared/domain/cameras.js'
 
 const FAILURE_FEED_LIMIT = 12
+// Raio de busca das câmeras em volta de cada ocorrência no mapa.
+const NEARBY_CAMERA_RADIUS_M = 300
+// Referência estável para listas vazias (evita refazer memos a cada render).
+const EMPTY_LIST = []
 const SEVERITY_FILTERS = [
   { key: 'low', label: 'Baixa', color: '#3B82F6' },
   { key: 'medium', label: 'Média', color: '#F59E0B' },
@@ -93,7 +98,7 @@ function MapFocus({ occurrence }) {
 
   useEffect(() => {
     if (occurrence?.coordinates) {
-      map.flyTo([occurrence.coordinates.latitude, occurrence.coordinates.longitude], Math.max(map.getZoom(), 14), {
+      map.flyTo([occurrence.coordinates.latitude, occurrence.coordinates.longitude], Math.max(map.getZoom(), NEARBY_CAMERAS_MIN_ZOOM), {
         duration: 0.6,
       })
     }
@@ -120,22 +125,28 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
   // Em modo histórico o mapa e o painel desenham o frame; ao vivo, os dados
   // em tempo real. É o mesmo pipeline de renderização nos dois casos.
   const historical = isHistory ? snapshot?.payload : null
-  const feed = historical?.occurrences
-    ? historical.occurrences.map(frameEventToEvent)
-    : occurrences.feed || []
-  const mapEvents = feed.filter((event) => event.coordinates)
+  const liveFeed = occurrences.feed
+  const feed = useMemo(
+    () => (historical?.occurrences ? historical.occurrences.map(frameEventToEvent) : liveFeed || []),
+    [historical, liveFeed],
+  )
+  const mapEvents = useMemo(() => feed.filter((event) => event.coordinates), [feed])
   const [expandedEventId, setExpandedEventId] = useState(null)
   const [selectedEventId, setSelectedEventId] = useState(null)
   const [activeTab, setActiveTab] = useState('occurrences')
   const [mapLayer, setMapLayer] = useState('street')
   const [showWazeCongestion, setShowWazeCongestion] = useState(true)
+  const [showNearbyCameras, setShowNearbyCameras] = useState(true)
   const [visibleSeverities, setVisibleSeverities] = useState(['high', 'medium', 'low'])
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [severityFilter, setSeverityFilter] = useState(null)
   const incidentCount = feed.length
   const criticalCount = feed.filter((event) => severityKeyOf(event) === 'high').length
   const selectedEvent = mapEvents.find((event) => event.id === selectedEventId) || null
-  const visibleEvents = mapEvents.filter((event) => visibleSeverities.includes(severityKeyOf(event)))
+  const visibleEvents = useMemo(
+    () => mapEvents.filter((event) => visibleSeverities.includes(severityKeyOf(event))),
+    [mapEvents, visibleSeverities],
+  )
   const congestedJams = (historical ? historical.waze?.jams || [] : waze.jams || []).filter(
     (jam) => jam.level >= 3 && jam.coordinates?.length >= 2,
   )
@@ -217,6 +228,15 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
                   </label>
                   <p className="mt-1 px-1 text-[10px] leading-relaxed text-slate-500">Trechos com nível de congestionamento 3 a 5.</p>
                 </div>
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Camera size={13} /> Câmeras</div>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/30 px-3 py-2 text-xs text-slate-700 hover:bg-white/55">
+                    <input type="checkbox" checked={showNearbyCameras} onChange={(event) => setShowNearbyCameras(event.target.checked)} className="accent-emerald-500" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    Próximas às ocorrências
+                  </label>
+                  <p className="mt-1 px-1 text-[10px] leading-relaxed text-slate-500">Câmeras a até {NEARBY_CAMERA_RADIUS_M} m de cada ocorrência. Aparecem ao aproximar o mapa (zoom {NEARBY_CAMERAS_MIN_ZOOM}+).</p>
+                </div>
                 <p className="rounded-lg bg-white/30 p-2 text-[10px] leading-relaxed text-slate-600">
                   Mostrando {visibleEvents.length} de {mapEvents.length} ocorrências Hexagon. O trânsito do Waze é exibido como linhas separadas.
                 </p>
@@ -273,6 +293,9 @@ function MonitoringPrototype({ occurrences, waze, semaforos, cameras }) {
                 </Popup>
               </Polyline>
             ))}
+            {showNearbyCameras && (
+              <NearbyCamerasLayer events={visibleEvents} cameras={cameras?.cameras || EMPTY_LIST} radiusMeters={NEARBY_CAMERA_RADIUS_M} />
+            )}
             {visibleEvents.map((event) => (
               <CircleMarker
                 key={`hexagon-${event.id}`}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { distanceMeters, nearestCamera } from './cameras.js'
+import { buildCameraIndex, camerasWithin, distanceMeters, nearestCamera } from './cameras.js'
 
 describe('câmera mais próxima', () => {
   const cameras = [
@@ -25,5 +25,26 @@ describe('câmera mais próxima', () => {
   it('devolve null sem câmeras ou sem ponto válido', () => {
     assert.equal(nearestCamera([], -22.9, -43.1), null)
     assert.equal(nearestCamera(cameras, undefined, -43.1), null)
+  })
+})
+
+describe('câmeras dentro de um raio', () => {
+  const cameras = [
+    { code: 'perto', latitude: -22.9001, longitude: -43.1700 },
+    // Do outro lado de uma borda de célula da grade, ainda dentro do raio.
+    { code: 'vizinha', latitude: -22.8999, longitude: -43.1702 },
+    { code: 'longe', latitude: -22.92, longitude: -43.17 },
+    { code: 'sem-coord', latitude: null, longitude: null },
+  ]
+  const index = buildCameraIndex(cameras)
+
+  it('devolve só as câmeras dentro do raio, da mais próxima à mais distante', () => {
+    const result = camerasWithin(index, -22.9, -43.17, 300)
+    assert.deepEqual(result.map((item) => item.camera.code), ['perto', 'vizinha'])
+    assert.ok(result[0].distance <= result[1].distance)
+  })
+
+  it('não devolve nada sem ponto válido', () => {
+    assert.deepEqual(camerasWithin(index, undefined, -43.17, 300), [])
   })
 })
